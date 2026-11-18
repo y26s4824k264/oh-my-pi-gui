@@ -2818,6 +2818,8 @@ export const en: Record<string, string> = {
 	"chat.stopped": "Stopped",
 	"chat.error.repeats": "{count} attempts",
 	"chat.error.title": "The request failed",
+	"chat.error.cyberPolicyTitle": "OpenAI blocked the request",
+	"chat.error.cyberPolicyHelp": "View OpenAI guidance",
 	"chat.error.retryingTitle": "Attempt failed, trying again",
 	"chat.error.retryFailed": "Couldn't retry",
 	"chat.turnChanges.files": "{count} file{plural} edited this turn",
@@ -4196,6 +4198,8 @@ export const en: Record<string, string> = {
 	"errors.badReply": "The reply couldn't be read. Check that the address points to an API.",
 	"errors.htmlReply": "The server sent a web page instead of an API reply. Check the address.",
 	"errors.noModel": "No model selected. Add a provider or sign in, then choose a model.",
+	"errors.cyberPolicy":
+		"OpenAI flagged this request for possible cybersecurity risk. If you think it was a mistake, report it through Codex feedback.",
 	"errors.noApiKey": "No API key found for {provider}. Add one in the provider's settings.",
 	"errors.badUrl": "That address isn't a valid URL. Check it and try again.",
 	"errors.technicalDetails": "Technical details",

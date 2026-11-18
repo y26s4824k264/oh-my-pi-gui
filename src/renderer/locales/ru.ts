@@ -2681,6 +2681,8 @@ export const ru: Record<string, string> = {
 	"chat.stopped": "Остановлено",
 	"chat.error.repeats": "Попыток: {count}",
 	"chat.error.title": "Не удалось выполнить запрос",
+	"chat.error.cyberPolicyTitle": "OpenAI заблокировала запрос",
+	"chat.error.cyberPolicyHelp": "Рекомендации OpenAI",
 	"chat.error.retryingTitle": "Попытка не удалась, пробуем снова",
 	"chat.error.retryFailed": "Не удалось повторить",
 	"chat.turnChanges.files": "Отредактировано за ход: {count}",
@@ -4029,6 +4031,8 @@ export const ru: Record<string, string> = {
 	"errors.badReply": "Не удалось прочитать ответ. Убедитесь, что адрес указывает на API.",
 	"errors.htmlReply": "Сервер вернул веб-страницу вместо ответа API. Проверьте адрес.",
 	"errors.noModel": "Модель не выбрана. Добавьте провайдера или войдите в учётную запись, затем выберите модель.",
+	"errors.cyberPolicy":
+		"OpenAI отметила запрос как потенциально опасный для кибербезопасности. Если это ошибка, сообщите об этом через обратную связь в Codex.",
 	"errors.noApiKey": "Не найден API-ключ для {provider}. Добавьте его в настройках провайдера.",
 	"errors.badUrl": "Этот адрес не является допустимым URL. Проверьте его и попробуйте снова.",
 	"errors.technicalDetails": "Технические сведения",

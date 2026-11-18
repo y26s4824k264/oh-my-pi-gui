@@ -17,7 +17,7 @@ import { memo, useLayoutEffect, useRef, useState } from "react";
 import type { AgentMessage, ImageContent, MessageContent, ToolCallContent } from "../../../shared/rpc-types";
 import { OutputText } from "../../lib/ansi";
 import { splitAttachmentMentions } from "../../lib/attachment-mentions";
-import { describeProviderError } from "../../lib/errors";
+import { describeProviderError, isCyberPolicyError } from "../../lib/errors";
 import { copyText, cx, formatClock, formatTokens } from "../../lib/format";
 import { useT } from "../../lib/i18n";
 import { MarkdownRenderer } from "../../lib/markdown";
@@ -103,7 +103,8 @@ function MessageError({ message, repeats = 1 }: { message: AgentMessage; repeats
 			setRetrying(false);
 		}
 	};
-	const retryButton = !readOnly && isLatest && idle && (
+	const policyBlocked = isCyberPolicyError(message.errorMessage);
+	const retryButton = !policyBlocked && !readOnly && isLatest && idle && (
 		<button
 			type="button"
 			disabled={retrying}
@@ -145,7 +146,11 @@ function MessageError({ message, repeats = 1 }: { message: AgentMessage; repeats
 			/>
 			<div className="min-w-0 flex-1">
 				<p className="text-omp-md font-medium text-[var(--omp-text)]">
-					{stillTrying ? t("chat.error.retryingTitle") : t("chat.error.title")}
+					{policyBlocked
+						? t("chat.error.cyberPolicyTitle")
+						: stillTrying
+							? t("chat.error.retryingTitle")
+							: t("chat.error.title")}
 					{repeats > 1 && (
 						<span className="ml-2 text-omp-sm font-normal tabular-nums text-[var(--omp-dim)]">
 							{t("chat.error.repeats", { count: repeats })}
@@ -153,6 +158,16 @@ function MessageError({ message, repeats = 1 }: { message: AgentMessage; repeats
 					)}
 				</p>
 				<p className="mt-0.5 break-words text-omp-sm text-[var(--omp-muted)]">{described}</p>
+				{policyBlocked && (
+					<a
+						className="mt-1 inline-block text-omp-sm text-(--omp-link) hover:underline"
+						href="https://learn.chatgpt.com/docs/cyber-safety#false-positives"
+						rel="noreferrer"
+						target="_blank"
+					>
+						{t("chat.error.cyberPolicyHelp")}
+					</a>
+				)}
 				<TechnicalDetails className="mt-1" raw={message.errorMessage} shown={described} />
 			</div>
 			{retryButton}

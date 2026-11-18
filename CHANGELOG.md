@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- Codex cybersecurity blocks explain the reason, link to OpenAI guidance, and keep the original event under Technical details.
 - The Memory page opens across projects, and its scope selector responds to clicks in the window header.
 - Sent attachments appear as file cards without exposing their full paths in the message body.
 
