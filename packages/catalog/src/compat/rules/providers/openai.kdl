@@ -88,6 +88,22 @@ provider "openai" {
 			limits context=8192
 			supports-tools #false
 		}
+		// The Images API accepts these explicit model IDs. The Codex subscription
+		// route has its own hosted-image configuration and is independent.
+		model "gpt-image-2.6-sunburst" name="GPT Image 2.6 Sunburst" api="openai-images" {
+			reasoning #false
+			input "text" "image"
+			cost input=5 output=30 cache-read=1.25 cache-write=0
+			limits
+			supports-tools #false
+		}
+		model "gpt-image-2.6-flare" name="GPT Image 2.6 Flare" api="openai-images" {
+			reasoning #false
+			input "text" "image"
+			cost input=5 output=30 cache-read=1.25 cache-write=0
+			limits
+			supports-tools #false
+		}
 		// Decisions API (`POST /v1/decisions`, public beta,
 		// developers.openai.com/api/docs/guides/decisions) answers typed questions
 		// with GPT-6 Luna. The wire id is the chat row's `gpt-6-luna`, so the judge
@@ -110,6 +126,9 @@ provider "openai" {
 	}
 	models "text-embedding-3-small" "text-embedding-3-large" "text-embedding-ada-002" {
 		kind "embedding"
+	}
+	models "gpt-image-2.6-sunburst" "gpt-image-2.6-flare" {
+		kind "image"
 	}
 
 	// Replaces the strict-mode provider whitelist entry.
