@@ -212,7 +212,7 @@ describe("PanelContainer chat tab filter", () => {
 		}));
 		ompWindow.omp = {
 			fs: {
-				list: vi.fn(async () => ({ ok: true, entries: [], truncated: false })),
+				explore: vi.fn(async () => ({ ok: true, entries: [], truncated: false })),
 				read,
 			},
 			system: {
@@ -251,7 +251,7 @@ describe("PanelContainer chat tab filter", () => {
 		}));
 		ompWindow.omp = {
 			fs: {
-				list: vi.fn(async () => ({ ok: true, entries: [], truncated: false })),
+				explore: vi.fn(async () => ({ ok: true, entries: [], truncated: false })),
 				read,
 			},
 			system: {
@@ -277,7 +277,7 @@ describe("PanelContainer chat tab filter", () => {
 		useUiStore.setState({ panelVisible: false, filePreviewPath: null });
 		ompWindow.omp = {
 			fs: {
-				list: vi.fn(async () => ({ ok: true, entries: [], truncated: false })),
+				explore: vi.fn(async () => ({ ok: true, entries: [], truncated: false })),
 				read: vi.fn(async () => ({
 					ok: true,
 					content: "# Title\n\nIntro.\n\n## Usage\n",

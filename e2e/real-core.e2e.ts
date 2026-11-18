@@ -27,11 +27,17 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		}),
 	);
 	await fs.mkdir(path.join(project, "docs"));
+	const deep = Array.from({ length: 12 }, (_, index) => `level-${index}`);
+	const deepFolder = path.join(project, "docs", ...deep);
+	await fs.mkdir(deepFolder, { recursive: true });
 	const png = Buffer.from(
 		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aYSsAAAAASUVORK5CYII=",
 		"base64",
 	);
 	await Promise.all([
+		fs.writeFile(path.join(project, ".gitignore"), "ignored-notes.txt\n"),
+		fs.writeFile(path.join(project, "ignored-notes.txt"), "ignored attachment"),
+		fs.writeFile(path.join(deepFolder, "end-of-tree.txt"), "found beyond the old depth limit"),
 		fs.writeFile(
 			path.join(project, "docs", "README.md"),
 			"# Local ARM audit\n\nRead ./notes.txt:2.\n\n![Diagram](diagram.png)\n",
@@ -132,14 +138,51 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await expect(preview.getByRole("heading", { name: "Local ARM audit" })).toBeVisible();
 		await expect(tree).toBeVisible();
 		const [treeBounds, previewBounds] = await Promise.all([tree.boundingBox(), preview.boundingBox()]);
-		expect(previewBounds?.x ?? 0).toBeGreaterThan((treeBounds?.x ?? 0) + (treeBounds?.width ?? 0));
+		expect(treeBounds?.x ?? 0).toBeGreaterThan((previewBounds?.x ?? 0) + (previewBounds?.width ?? 0));
 		const treeDivider = page.getByRole("separator", { name: "Resize file tree" });
 		const originalTreeWidth = await treeDivider.getAttribute("aria-valuenow");
 		await treeDivider.press("ArrowRight");
 		await expect(treeDivider).not.toHaveAttribute("aria-valuenow", originalTreeWidth ?? "");
 		await preview.getByRole("link", { name: "./notes.txt:2" }).click();
 		await expect(preview).toContainText("marked line");
-		await expect(tree.getByText("notes.txt", { exact: true })).toBeVisible();
+		const notes = tree.getByText("notes.txt", { exact: true });
+		await expect(notes).toBeVisible();
+		const edit = page.getByRole("button", { name: "Edit file", exact: true });
+		await edit.click();
+		const editor = preview.getByRole("textbox", { name: "File content", exact: true });
+		await editor.fill("saved by OMP\n");
+		await editor.press("ControlOrMeta+s");
+		await expect(editor).toHaveCount(0);
+		await expect(preview).toContainText("saved by OMP");
+		const notesPath = path.join(project, "docs", "notes.txt");
+		expect(await fs.readFile(notesPath, "utf8")).toBe("saved by OMP\n");
+
+		await edit.click();
+		await editor.fill("my unsaved draft");
+		await readme.click();
+		await notes.click();
+		await expect(editor).toContainText("my unsaved draft");
+		await fs.writeFile(notesPath, "changed outside OMP\n");
+		await preview.getByRole("button", { name: "Save", exact: true }).click();
+		await expect(preview.getByRole("alert")).toContainText("This file changed on disk");
+		expect(await fs.readFile(notesPath, "utf8")).toBe("changed outside OMP\n");
+		await preview.getByRole("button", { name: "Cancel", exact: true }).click();
+		await page
+			.getByRole("dialog", { name: "Discard changes", exact: true })
+			.getByRole("button", { name: "Discard changes", exact: true })
+			.click();
+		await expect(preview).toContainText("changed outside OMP");
+
+		const fileSearch = page.getByRole("textbox", { name: "Search project files", exact: true });
+		await fileSearch.fill("end-of-tree.txt");
+		await tree.getByText("end-of-tree.txt", { exact: true }).click();
+		await expect(preview).toContainText("found beyond the old depth limit");
+		await fileSearch.fill("");
+		await expect(tree.getByText("end-of-tree.txt", { exact: true })).toBeVisible();
+		await expect(tree.getByText("ignored-notes.txt", { exact: true })).toHaveCount(0);
+		await page.getByRole("button", { name: "Show ignored files", exact: true }).click();
+		await expect(tree.getByText("ignored-notes.txt", { exact: true })).toBeVisible();
+		await page.getByRole("button", { name: "Hide ignored files", exact: true }).click();
 		await readme.click();
 		await preview.getByRole("button", { name: "Diagram", exact: true }).click();
 		await expect(preview.locator('img[alt="diagram.png"]')).toBeVisible();

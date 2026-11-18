@@ -19,12 +19,15 @@ import type {
 	IpcConversationSearchPayload,
 	IpcDeleteCustomThemeResult,
 	IpcExtensionUiRespondPayload,
+	IpcFsEditPayload,
+	IpcFsExplorePayload,
 	IpcFsListPayload,
 	IpcFsReadImagePayload,
 	IpcFsReadImageResult,
 	IpcFsReadPayload,
 	IpcFsReadPlanPayload,
 	IpcFsReadPlanResult,
+	IpcFsSaveEditPayload,
 	IpcGetSessionOwnerPayload,
 	IpcHostToolResultPayload,
 	IpcHostToolUpdatePayload,
@@ -93,6 +96,8 @@ import { setTrayState } from "./tray";
 import { aggregateTrayStatus } from "./tray-labels";
 import { appVersion } from "./updater";
 import type { SpawnWindow, WindowManager } from "./window";
+import { browseWorkspace, searchWorkspace } from "./workspace-explorer";
+import { openWorkspaceEdit, saveWorkspaceEdit } from "./workspace-file-editor";
 import { resolveExistingPath, resolveWithin, toAbsolutePath } from "./workspace-paths";
 
 export interface IpcDeps {
@@ -269,9 +274,9 @@ function isIgnored(rules: IgnoreRule[], relPath: string, isDir: boolean): boolea
 	return ignored;
 }
 
-async function loadIgnoreRules(rootAbs: string): Promise<IgnoreRule[]> {
+async function loadIgnoreRules(rootAbs: string, defaults = FS_IGNORED_DEFAULTS): Promise<IgnoreRule[]> {
 	const rules: IgnoreRule[] = [];
-	for (const pattern of FS_IGNORED_DEFAULTS) {
+	for (const pattern of defaults) {
 		const rule = compileIgnoreRule(pattern);
 		if (rule) rules.push(rule);
 	}
@@ -390,6 +395,7 @@ function aggregateProgress(states: RunProgressState[]): RunProgressState {
 
 export function registerIpcHandlers(deps: IpcDeps): void {
 	const benchmarkRunners = new Map<number, BenchmarkRunner>();
+	const fileSearches = new Map<number, AbortController>();
 	const { sidecarPool, sessionIndex, statsClient, logWatcher, memoryWatcher, customThemesWatcher, windowManager } =
 		deps;
 	const prefsStore = new Store<PrefsSchema>({ name: "prefs" });
@@ -1259,6 +1265,49 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 			};
 		}
 	});
+
+	ipcMain.handle(IPC_COMMANDS.FS_EXPLORE, async (event, payload: IpcFsExplorePayload) => {
+		const senderId = event.sender.id;
+		const query = typeof payload?.query === "string" ? payload.query.trim() : undefined;
+		if (query !== undefined) fileSearches.get(senderId)?.abort();
+		if (query === "") return { ok: true, entries: [], truncated: false };
+		const root = cwdFor(deps, event, payload?.tabId);
+		if (!root) return { ok: false, entries: [], truncated: false, error: "No workspace" };
+		const search = query ? new AbortController() : undefined;
+		const cancel = () => search?.abort();
+		if (search) {
+			fileSearches.set(senderId, search);
+			event.sender.once("destroyed", cancel);
+		}
+		try {
+			const defaults = FS_IGNORED_DEFAULTS.filter(name => !["build", "dist", "out", "target"].includes(name));
+			const rules = payload?.showIgnored === true ? [] : await loadIgnoreRules(root, defaults);
+			const ignored = (relative: string, directory: boolean) => isIgnored(rules, relative, directory);
+			const entries = query
+				? await searchWorkspace(root, query, ignored, search?.signal)
+				: await browseWorkspace(root, typeof payload?.path === "string" ? payload.path : "", ignored);
+			return { ok: true, entries, truncated: false };
+		} catch (error) {
+			return {
+				ok: false,
+				entries: [],
+				truncated: false,
+				error: error instanceof Error ? error.message : String(error),
+			};
+		} finally {
+			if (search) {
+				event.sender.removeListener("destroyed", cancel);
+				if (fileSearches.get(senderId) === search) fileSearches.delete(senderId);
+			}
+		}
+	});
+
+	ipcMain.handle(IPC_COMMANDS.FS_OPEN_EDIT, (event, payload: IpcFsEditPayload) =>
+		openWorkspaceEdit(cwdFor(deps, event, payload?.tabId), payload?.path),
+	);
+	ipcMain.handle(IPC_COMMANDS.FS_SAVE_EDIT, (event, payload: IpcFsSaveEditPayload) =>
+		saveWorkspaceEdit(cwdFor(deps, event, payload?.tabId), payload?.path, payload?.revision, payload?.content),
+	);
 
 	ipcMain.handle(IPC_COMMANDS.FS_READ, async (event, payload: IpcFsReadPayload) => {
 		const fail = (error: string) => ({ ok: false, content: "", truncated: false, binary: false, size: 0, error });

@@ -266,6 +266,9 @@ export const IPC_COMMANDS = {
 	MODELS_CONFIG_OPEN: "models:config-open",
 	/** List workspace files as a tree (main-process readdir, no sidecar needed) */
 	FS_LIST: "fs:list",
+	FS_EXPLORE: "fs:explore",
+	FS_OPEN_EDIT: "fs:open-edit",
+	FS_SAVE_EDIT: "fs:save-edit",
 	/** Read a workspace file with a byte cap */
 	FS_READ: "fs:read",
 	/** Read the plan-mode document off the RPC bus (with session-local fallback) */
@@ -787,6 +790,8 @@ export interface FsTreeEntry {
 	/** Workspace-relative path using POSIX separators. */
 	path: string;
 	kind: "file" | "dir";
+	/** Internal symlink; global search does not recurse through directory links. */
+	symlink?: boolean;
 	/** Directories only; omitted or empty beyond the depth cap. */
 	children?: FsTreeEntry[];
 }
@@ -798,6 +803,29 @@ export interface IpcFsListResult {
 	truncated: boolean;
 	error?: string;
 }
+
+export interface IpcFsExplorePayload {
+	tabId?: string;
+	path?: string;
+	showIgnored?: boolean;
+	/** Present for project-wide search. An empty query cancels the current search. */
+	query?: string;
+}
+
+export interface IpcFsEditPayload {
+	tabId?: string;
+	path: string;
+}
+
+export interface IpcFsSaveEditPayload extends IpcFsEditPayload {
+	revision: string;
+	content: string;
+}
+
+export type FileEditFailure = "outside" | "readOnly" | "notText" | "tooLarge" | "changed" | "io";
+export type IpcFsEditResult =
+	| { ok: true; content: string; revision: string }
+	| { ok: false; reason: FileEditFailure; detail?: string };
 
 export interface IpcFsReadPayload {
 	/** Visible tab whose workspace resolves relative paths. */
@@ -1717,6 +1745,9 @@ export interface OmpApi {
 	};
 	fs: {
 		list(path?: string, maxDepth?: number, maxEntries?: number, tabId?: string): Promise<IpcFsListResult>;
+		explore(payload: IpcFsExplorePayload): Promise<IpcFsListResult>;
+		openEdit(payload: IpcFsEditPayload): Promise<IpcFsEditResult>;
+		saveEdit(payload: IpcFsSaveEditPayload): Promise<IpcFsEditResult>;
 		read(path: string, maxBytes?: number, tabId?: string): Promise<IpcFsReadResult>;
 		readPlan(payload: IpcFsReadPlanPayload): Promise<IpcFsReadPlanResult>;
 		readImage(path: string, tabId?: string): Promise<IpcFsReadImageResult>;

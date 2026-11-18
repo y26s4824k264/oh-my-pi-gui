@@ -20,11 +20,15 @@ import type {
 	IpcConversationSearchPayload,
 	IpcCustomThemes,
 	IpcDeleteCustomThemeResult,
+	IpcFsEditPayload,
+	IpcFsEditResult,
+	IpcFsExplorePayload,
 	IpcFsListResult,
 	IpcFsReadImageResult,
 	IpcFsReadPlanPayload,
 	IpcFsReadPlanResult,
 	IpcFsReadResult,
+	IpcFsSaveEditPayload,
 	IpcMemoryChange,
 	IpcOpenPathResult,
 	IpcPluginInspection,
@@ -459,6 +463,12 @@ const api: OmpApi = {
 	},
 
 	fs: {
+		explore: (payload: IpcFsExplorePayload) =>
+			ipcRenderer.invoke(IPC_COMMANDS.FS_EXPLORE, payload) as Promise<IpcFsListResult>,
+		openEdit: (payload: IpcFsEditPayload) =>
+			ipcRenderer.invoke(IPC_COMMANDS.FS_OPEN_EDIT, payload) as Promise<IpcFsEditResult>,
+		saveEdit: (payload: IpcFsSaveEditPayload) =>
+			ipcRenderer.invoke(IPC_COMMANDS.FS_SAVE_EDIT, payload) as Promise<IpcFsEditResult>,
 		list: (path?: string, maxDepth?: number, maxEntries?: number, tabId?: string) =>
 			ipcRenderer.invoke(IPC_COMMANDS.FS_LIST, { path, maxDepth, maxEntries, tabId }) as Promise<IpcFsListResult>,
 		read: (path: string, maxBytes?: number, tabId?: string) =>

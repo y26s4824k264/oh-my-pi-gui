@@ -72,7 +72,7 @@ describe("FilesPanel right-click", () => {
 		revealPath = vi.fn(async () => ({ ok: true }));
 		ompWindow.omp = {
 			fs: {
-				list: vi.fn(async () => ({
+				explore: vi.fn(async () => ({
 					ok: true,
 					entries: [{ name: "README.md", path: "README.md", kind: "file" }],
 					truncated: false,
@@ -122,7 +122,7 @@ describe("FilesPanel preview", () => {
 
 	async function open(path: string, fs: Record<string, unknown>, line?: number): Promise<void> {
 		ompWindow.omp = {
-			fs: { list: vi.fn(async () => ({ ok: true, entries: [], truncated: false })), ...fs },
+			fs: { explore: vi.fn(async () => ({ ok: true, entries: [], truncated: false })), ...fs },
 			system: { resolvePaths: vi.fn(async (paths: string[]) => paths.map(() => null)) },
 		};
 		useUiStore.getState().openFilePreview(path, line);
@@ -145,17 +145,13 @@ describe("FilesPanel preview", () => {
 	it("keeps the directory tree and selected file visible beside the preview", async () => {
 		await open("notes/a.txt", {
 			read: vi.fn(async () => text("preview content")),
-			list: vi.fn(async () => ({
+			explore: vi.fn(async ({ path }: { path: string }) => ({
 				ok: true,
 				truncated: false,
-				entries: [
-					{
-						kind: "dir",
-						name: "notes",
-						path: "notes",
-						children: [{ kind: "file", name: "a.txt", path: "notes/a.txt" }],
-					},
-				],
+				entries:
+					path === "notes"
+						? [{ kind: "file", name: "a.txt", path: "notes/a.txt" }]
+						: [{ kind: "dir", name: "notes", path: "notes" }],
 			})),
 		});
 		expect(shownText()).toContain("preview content");
