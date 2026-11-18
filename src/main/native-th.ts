@@ -95,6 +95,7 @@ export const TH_MAIN_TEXT: Record<MainTextKey, string> = {
 	"updates.hashMismatch": "ตัวติดตั้งที่ดาวน์โหลดไม่ผ่านการตรวจ SHA-512 และถูกลบไปแล้ว",
 	"updates.installerMissing": "รุ่นนี้ไม่มีตัวติดตั้งที่จำเป็นสำหรับ Mac เครื่องนี้",
 	"updates.noResult": "การตรวจสอบอัปเดตเสร็จสิ้นโดยไม่มีผลลัพธ์",
+	"updates.noFeed": "อัปเดตบิลด์นี้โดยติดตั้งแพ็กเกจรุ่นใหม่",
 	"updates.openInstallerFailed": "ดาวน์โหลดตัวติดตั้งแล้ว แต่ macOS เปิดไม่ได้",
 	"updates.unsupportedArchitecture": "สถาปัตยกรรมของ Mac เครื่องนี้ไม่มีตัวติดตั้งที่รองรับ",
 };

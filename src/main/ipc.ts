@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, Notification, net, shell } from "electron";
 import Store from "electron-store";
+import { CONFIG_EDITOR_PREF, readConfigEditor } from "../shared/config-editor";
 import { KEYMAP_DISABLED_PREF, KEYMAP_OVERRIDES_PREF } from "../shared/hotkeys";
 import type {
 	ConversationSearchResponse,
@@ -73,7 +74,7 @@ import type { BrowserHost } from "./browser-host";
 import type { ConversationIndex } from "./conversation-index";
 import { type CustomThemesWatcher, deleteCustomTheme, readCustomThemes, saveCustomTheme } from "./custom-themes";
 import { ensureDefaultWorkspace } from "./default-workspace";
-import { openInExternalEditor } from "./editor";
+import { openInExternalEditor, openMacConfigEditor } from "./editor";
 import { readImageFile } from "./fs-image";
 import { mainT } from "./i18n";
 import type { LogWatcher } from "./log-watcher";
@@ -1214,7 +1215,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 		deleteModelsProvider(id);
 	});
 
-	// "Edit config" — open the agent's models.yml in the system editor. The
+	// "Edit config" — open the agent's models.yml in the configured editor. The
 	// file is created with a minimal skeleton when missing so there is always
 	// something to edit; when no editor association exists, reveal it in the
 	// file manager instead.
@@ -1224,9 +1225,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 			await fsp.mkdir(path.dirname(file), { recursive: true });
 			await fsp.writeFile(file, "# Custom model providers.\nproviders: {}\n", "utf8");
 		}
-		const openError = await shell.openPath(file);
-		if (openError) shell.showItemInFolder(file);
-		return { path: file, opened: !openError };
+		const editor = readConfigEditor(prefsStore.get(CONFIG_EDITOR_PREF));
+		const opened =
+			process.platform === "darwin" && editor !== "system"
+				? await openMacConfigEditor(file, editor)
+				: (await shell.openPath(file)) === "";
+		if (!opened) shell.showItemInFolder(file);
+		return { path: file, opened };
 	});
 
 	// Workspace filesystem — node:fs against the calling window's cwd; works

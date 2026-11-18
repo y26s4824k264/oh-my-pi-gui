@@ -382,9 +382,9 @@ export function FilesPanel() {
 	const hasPreview = Boolean(filePreviewPath || filePreviewImage);
 	const previewBody =
 		filePreviewPath && activeTab ? (
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
-				<PanelToolbar className="gap-1 border-b border-(--omp-border-muted) pl-1.5">
-					<span className="min-w-0 flex-1 px-1 text-omp-sm font-medium">
+			<div className="omp-file-preview flex min-h-0 min-w-0 flex-1 flex-col">
+				<PanelToolbar className="omp-file-preview-toolbar gap-1 border-b border-(--omp-border-muted) pl-1.5">
+					<span className="omp-file-preview-label min-w-0 flex-1 px-1 text-omp-sm font-medium">
 						<FileLabel path={filePreviewPath} />
 					</span>
 					{markdownFile && (
@@ -578,7 +578,7 @@ export function FilesPanel() {
 					aria-valuemin={17}
 					aria-valuemax={74}
 					aria-valuenow={treeShare}
-					className="z-10 cursor-col-resize touch-none border-x border-(--omp-border-muted) bg-(--omp-bg-tertiary) hover:bg-(--omp-accent) focus-visible:bg-(--omp-accent)"
+					className="z-10 cursor-col-resize touch-none border-x border-(--omp-border-muted) hover:bg-(--omp-accent) focus-visible:bg-(--omp-accent)"
 					role="separator"
 					tabIndex={0}
 					onKeyDown={event => {

@@ -428,7 +428,11 @@
 .omp-split-divider::before {
 	content: "";
 	position: absolute;
-	inset: -4px;
+	inset: 0 -4px;
+}
+
+.omp-split-divider[aria-orientation="horizontal"]::before {
+	inset: -4px 0;
 }
 
 .omp-workspace-main,
@@ -1648,7 +1652,7 @@
 	display: none;
 }
 
-@container omp-composer-toolbar (max-width: 360px) {
+@container omp-composer-toolbar (max-width: 220px) {
 	.omp-composer-model-label {
 		display: none;
 	}

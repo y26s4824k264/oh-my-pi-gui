@@ -61,6 +61,7 @@ import type { SessionInfo } from "../../../shared/ipc-types";
 import { useAwaitingConfirmation } from "../../hooks/use-awaiting-confirmation";
 import { useSessionList } from "../../hooks/use-session-list";
 import { dropSessionNow, openSessionFromSidebar } from "../../hooks/use-session-switch";
+import { useViewportWidth } from "../../hooks/use-viewport-width";
 import { basename, cx, formatTimeAgo } from "../../lib/format";
 import { useT } from "../../lib/i18n";
 import { isImeKeyEvent } from "../../lib/ime";
@@ -213,6 +214,9 @@ export function Sidebar() {
 	const SIDEBAR_MIN = 180;
 	const SIDEBAR_MAX = 420;
 	const [sidebarWidth, setSidebarWidth] = useState(236);
+	const viewportWidth = useViewportWidth();
+	const sidebarLimit = Math.round(Math.max(152, Math.min(SIDEBAR_MAX, viewportWidth * 0.22)));
+	const visibleSidebarWidth = Math.min(sidebarWidth, sidebarLimit);
 	const sidebarWidthRef = useRef(236);
 	// Layout widths persist like every other chrome pref; restored on mount.
 	useEffect(() => {
@@ -231,16 +235,18 @@ export function Sidebar() {
 		sidebarDragging.current = true;
 		e.currentTarget.setPointerCapture(e.pointerId);
 	}, []);
-	const onSidebarDrag = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
-		if (!sidebarDragging.current) return;
-		// Sidebar is left-anchored: dragging right grows it.
-		const host = e.currentTarget.parentElement;
-		if (!host) return;
-		const hostRect = host.getBoundingClientRect();
-		const clamped = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, e.clientX - hostRect.left));
-		sidebarWidthRef.current = clamped;
-		setSidebarWidth(clamped);
-	}, []);
+	const onSidebarDrag = useCallback(
+		(e: ReactPointerEvent<HTMLDivElement>) => {
+			if (!sidebarDragging.current) return;
+			const host = e.currentTarget.parentElement;
+			if (!host) return;
+			const hostRect = host.getBoundingClientRect();
+			const clamped = Math.min(sidebarLimit, Math.max(SIDEBAR_MIN, e.clientX - hostRect.left));
+			sidebarWidthRef.current = clamped;
+			setSidebarWidth(clamped);
+		},
+		[sidebarLimit],
+	);
 	const endSidebarDrag = useCallback(() => {
 		sidebarDragging.current = false;
 		void window.omp.prefs.set("sidebarWidth", sidebarWidthRef.current).catch(() => {});
@@ -1392,12 +1398,12 @@ export function Sidebar() {
 		<>
 			<aside
 				className="omp-session-sidebar relative flex h-full shrink-0 flex-col border-r border-[var(--omp-border-muted)] bg-[var(--omp-sidebar-bg)]"
-				style={{ width: sidebarWidth }}
+				style={{ width: visibleSidebarWidth }}
 			>
 				<div aria-hidden className="omp-window-caption drag-region" />
 				{/* Header: the lane switch and session search. */}
 				<div className="drag-region flex h-12 shrink-0 items-center gap-1 px-2.5">
-					<div role="group" aria-label={t("sidebar.mode.aria")} className="omp-segmented no-drag">
+					<div role="group" aria-label={t("sidebar.mode.aria")} className="omp-segmented no-drag min-w-0">
 						<Glide activeKey={mode} selector='[aria-pressed="true"]' variant="thumb" />
 						{(["code", "work"] as const).map(value => {
 							const Icon = value === "code" ? Code2 : BriefcaseBusiness;
@@ -1411,10 +1417,10 @@ export function Sidebar() {
 										setMode(value);
 										endSelection();
 									}}
-									className="flex h-6 items-center gap-1.5 px-2.5 text-omp-sm font-medium"
+									className="omp-sidebar-lane flex h-6 min-w-0 items-center gap-1.5 px-2.5 text-omp-sm font-medium"
 								>
-									<Icon aria-hidden="true" size={13} />
-									{t(`sidebar.mode.${value}`)}
+									<Icon aria-hidden="true" className="shrink-0" size={13} />
+									<span className="truncate">{t(`sidebar.mode.${value}`)}</span>
 								</button>
 							);
 						})}
@@ -1425,7 +1431,7 @@ export function Sidebar() {
 						onClick={openSessionPicker}
 						title={t("sidebar.search")}
 						aria-label={t("sidebar.search")}
-						className="no-drag omp-pressable flex h-7 w-7 items-center justify-center rounded-lg text-[var(--omp-muted)] hover:bg-[var(--omp-selected-bg)] hover:text-[var(--omp-text)]"
+						className="no-drag omp-pressable flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--omp-muted)] hover:bg-[var(--omp-selected-bg)] hover:text-[var(--omp-text)]"
 					>
 						<Search size={15} />
 					</button>
@@ -1683,7 +1689,7 @@ export function Sidebar() {
 						className="flex h-10 shrink-0 items-center gap-0.5 border-t border-[var(--omp-border-muted)] px-2"
 					>
 						{/* A narrow rail keeps the number and leaves the words to the tooltip. */}
-						{sidebarWidth < 220 ? (
+						{visibleSidebarWidth < 220 ? (
 							<span aria-live="polite" aria-label={bulkLabel} title={bulkLabel} className="min-w-0 flex-1 px-1">
 								<span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-(--omp-accent-dim) px-1.5 text-omp-xs font-medium tabular-nums text-(--omp-accent)">
 									{selectedSessions.length}

@@ -257,6 +257,11 @@ kbd,
 	max-height: none;
 }
 
+.omp-docked-page-content > .omp-docked-fill {
+	height: 100%;
+	min-height: 0;
+}
+
 .omp-docked-page-content .omp-docked-master-detail > aside {
 	width: min(42%, 20rem);
 }
@@ -292,6 +297,30 @@ kbd,
 
 .omp-image-viewer-tools {
 	right: calc(var(--omp-caption-right) + 0.75rem);
+}
+
+.omp-file-preview {
+	container: omp-file-preview / inline-size;
+}
+
+.omp-file-preview-toolbar {
+	height: auto;
+	min-height: 2.75rem;
+	flex-wrap: wrap;
+	padding-block: 0.25rem;
+}
+
+@container omp-file-preview (max-width: 20rem) {
+	.omp-file-preview-label {
+		display: none; /* The file name remains in the tab above the toolbar. */
+	}
+}
+
+@media (max-width: 1000px) {
+	.omp-sidebar-lane {
+		gap: 4px;
+		padding-inline: 6px;
+	}
 }
 
 /* A centered dialog tall or wide enough to reach the controls stays below them. */
@@ -1092,6 +1121,33 @@ kbd,
 
 	.settings-nav-item {
 		padding-inline: 0.5rem;
+	}
+}
+
+@media (max-width: 600px) {
+	.omp-settings-layout {
+		flex-direction: column;
+	}
+
+	.settings-sidebar {
+		width: 100%;
+		border-right: 0;
+		border-bottom: 1px solid var(--omp-border-muted);
+	}
+
+	.settings-sidebar > :last-child {
+		display: flex;
+		flex: none;
+		gap: 4px;
+		overflow-x: auto;
+		overflow-y: hidden;
+		padding-bottom: 6px;
+	}
+
+	.settings-nav-item {
+		width: auto;
+		flex-shrink: 0;
+		white-space: nowrap;
 	}
 }
 

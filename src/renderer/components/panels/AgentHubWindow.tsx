@@ -1005,7 +1005,7 @@ export function AgentHubWindow({ open, onClose, initialTab = "definitions" }: Ag
 
 	return (
 		<Modal dockable onClose={onClose} open={open} size="lg" title={t("agentHub.title")} bodyClassName="p-0">
-			<div className="flex max-h-[70vh] min-h-72 flex-col">
+			<div className="omp-docked-fill flex max-h-[70vh] min-h-72 flex-col">
 				<Tabs
 					activeId={tab}
 					ariaLabel={t("agentHub.title")}

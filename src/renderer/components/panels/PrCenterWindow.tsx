@@ -86,7 +86,7 @@ export function PrCenterWindow() {
 
 	return (
 		<Modal dockable open={open} onClose={close} title={t("prCenter.title")} size="full" bodyClassName="p-0">
-			<div className="flex h-[80vh] min-h-0 flex-col">
+			<div className="omp-docked-fill flex h-[80vh] min-h-0 flex-col">
 				{/* Header */}
 				<div className="flex shrink-0 items-center gap-3 border-b border-(--omp-border-muted) px-4 py-2.5">
 					{/* The modal title already names the window; this row names the repository. */}

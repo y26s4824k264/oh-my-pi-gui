@@ -95,6 +95,7 @@ export const RU_MAIN_TEXT: Record<MainTextKey, string> = {
 	"updates.hashMismatch": "Проверка SHA-512 скачанного установщика не пройдена; файл удалён.",
 	"updates.installerMissing": "В этой версии нет установщика, необходимого для этого Mac.",
 	"updates.noResult": "Проверка обновлений завершена без результата.",
+	"updates.noFeed": "Чтобы обновить эту сборку, установите новый пакет.",
 	"updates.openInstallerFailed": "Установщик скачан, но macOS не удалось его открыть.",
 	"updates.unsupportedArchitecture": "Для архитектуры этого Mac нет подходящего установщика.",
 };

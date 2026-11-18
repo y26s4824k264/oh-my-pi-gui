@@ -29,7 +29,7 @@ function FileTab({
 		<div
 			className={cx(
 				"group/file-tab flex h-9 shrink-0 items-center gap-0.5 border-r border-(--omp-border-muted) pr-1.5",
-				active ? "bg-(--omp-bg-primary) text-(--omp-text)" : "text-(--omp-muted) hover:bg-(--omp-selected-bg)",
+				active ? "bg-(--omp-selected-bg) text-(--omp-text)" : "text-(--omp-muted) hover:bg-(--omp-selected-bg)",
 			)}
 		>
 			<button
@@ -90,7 +90,7 @@ export function FileTabStrip({
 	return (
 		<div
 			aria-label={t("filesPanel.tabs")}
-			className="flex shrink-0 overflow-x-auto border-b border-(--omp-border-muted) bg-(--omp-bg-secondary) [scrollbar-width:thin]"
+			className="flex shrink-0 overflow-x-auto border-b border-(--omp-border-muted) [scrollbar-width:thin]"
 			onKeyDown={event => {
 				if (!(event.target instanceof HTMLElement) || event.target.getAttribute("role") !== "tab") return;
 				const index = tabs.findIndex(tab => tab.id === activeId);

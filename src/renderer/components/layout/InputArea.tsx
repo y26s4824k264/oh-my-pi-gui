@@ -93,7 +93,7 @@ export function InputArea() {
 	const cwd = useSessionStore(s => s.cwd);
 	const model = useModelStore(s => s.model);
 	const fastModeActive = useModelStore(s => s.fastModeActive);
-	const openModelPicker = useUiStore(s => s.openModelPicker);
+	const modelPickerOpen = useUiStore(s => s.modelPickerOpen) && runtimeTabId === activeTabId;
 	/** Agent `stt.enabled` setting: microphone dictation button in the composer. */
 	const sttEnabled = useSettingsStore(s => s.sttEnabled);
 	/** Agent `paste.largeMenuThreshold` setting: line count that triggers the paste menu. */
@@ -1121,8 +1121,15 @@ export function InputArea() {
 
 								<button
 									type="button"
-									onClick={openModelPicker}
+									onClick={() => {
+										const ui = useUiStore.getState();
+										if (modelPickerOpen) ui.closeModelPicker();
+										else ui.openModelPicker();
+									}}
 									disabled={collabReadOnly}
+									aria-controls={modelPickerOpen ? "omp-model-picker" : undefined}
+									aria-expanded={modelPickerOpen}
+									data-model-picker-trigger={runtimeTabId ?? ""}
 									aria-label={`${t("input.model")}: ${model?.id ?? t("input.chooseModel")}`}
 									title={`${t("input.model")}: ${model?.id ?? t("input.chooseModel")}`}
 									className="omp-composer-model omp-pressable flex h-8 min-w-0 max-w-52 items-center gap-1.5 rounded-full px-2.5 text-omp-md font-medium text-[var(--omp-muted)] hover:bg-[var(--omp-selected-bg)] hover:text-[var(--omp-text)]"

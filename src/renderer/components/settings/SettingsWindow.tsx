@@ -82,6 +82,7 @@ import { Button, Input, Spinner, type TabItem, TextArea } from "../common";
 import { isTopmostDialog, registerDialogLayer } from "../common/dialog-layer";
 import { ExtensionSettingsPage } from "../panels/ExtensionsPanel";
 import { InventorySettingsPage, type TabId as InventoryTabId } from "../panels/InventoryPanel";
+import { ConfigEditorSetting } from "./ConfigEditorSetting";
 import { ArrayChipEditor } from "./editors/ArrayChipEditor";
 import { RadioGroup } from "./editors/RadioGroup";
 import { Section } from "./editors/Section";
@@ -769,11 +770,13 @@ export function SettingsWindow() {
 	const guiSearchResults = useMemo(() => {
 		const q = query.trim().normalize("NFKC").toLowerCase();
 		if (!q) return [];
-		return GUI_SETTING_SEARCH_ITEMS.filter(item =>
-			`${item.id} ${en[item.labelKey]} ${zh[item.labelKey]} ${ru[item.labelKey]} ${item.aliases}`
-				.normalize("NFKC")
-				.toLowerCase()
-				.includes(q),
+		return GUI_SETTING_SEARCH_ITEMS.filter(
+			item =>
+				(item.id !== "configEditor" || window.omp?.platform === "darwin") &&
+				`${item.id} ${en[item.labelKey]} ${zh[item.labelKey]} ${ru[item.labelKey]} ${item.aliases}`
+					.normalize("NFKC")
+					.toLowerCase()
+					.includes(q),
 		);
 	}, [query]);
 	const locateSetting = (targetTab: string, id: string) => {
@@ -1065,7 +1068,7 @@ export function SettingsWindow() {
 			ref={dialogRef}
 			role="dialog"
 		>
-			<div className="flex min-h-0 flex-1">
+			<div className="omp-settings-layout flex min-h-0 flex-1">
 				<nav
 					aria-label={t("settings.title")}
 					className="settings-sidebar flex shrink-0 flex-col border-r border-(--omp-border-muted)"
@@ -1133,7 +1136,7 @@ export function SettingsWindow() {
 						)}
 					>
 						<div className="min-w-0 flex-1">
-							<h1 className="truncate text-[22px] font-semibold tracking-[-0.025em] text-(--omp-text)">
+							<h1 className="truncate text-omp-2xl font-semibold tracking-[-0.025em] text-(--omp-text)">
 								{tabTitle({ id: tab, label: tab })}
 							</h1>
 						</div>
@@ -1338,6 +1341,7 @@ export function SettingsWindow() {
 														{t("settings.gui.fontSizeDesc")}
 													</p>
 												</Section>
+												{window.omp?.platform === "darwin" && <ConfigEditorSetting />}
 												<Section id="setting-gui-panelDefault" title={t("settings.gui.panelDefault")}>
 													<RadioGroup
 														name="defaultPanelTab"

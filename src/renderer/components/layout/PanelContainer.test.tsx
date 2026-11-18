@@ -175,6 +175,13 @@ describe("PanelContainer chat tab filter", () => {
 		await mount(<PanelContainer />);
 
 		expect((document.querySelector("aside") as HTMLElement | null)?.style.width).toBe("672px");
+
+		await act(async () => {
+			Object.defineProperty(window, "innerWidth", { configurable: true, value: 900 });
+			window.dispatchEvent(new Event("resize"));
+		});
+		expect((document.querySelector("aside") as HTMLElement).style.width).toBe("360px");
+		expect(document.querySelector("aside")?.classList.contains("absolute")).toBe(true);
 	});
 
 	it("resizes from the window edge in both directions without snapping closed", async () => {

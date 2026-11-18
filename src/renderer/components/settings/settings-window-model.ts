@@ -160,6 +160,11 @@ export const GUI_SETTING_SEARCH_ITEMS = [
 		aliases: "compactDensity colorBlindMode compact density color blind 紧凑 密度 色盲",
 	},
 	{ id: "fontSize", labelKey: "settings.gui.fontSize", aliases: "fontSize font size 字号 字体" },
+	{
+		id: "configEditor",
+		labelKey: "settings.gui.configEditor",
+		aliases: "configuration editor models.yml Sublime Text TextEdit 配置 文本编辑",
+	},
 	{ id: "panelDefault", labelKey: "settings.gui.panelDefault", aliases: "panelTab sidebar panel 侧栏 面板" },
 	{
 		id: "tabStrip",

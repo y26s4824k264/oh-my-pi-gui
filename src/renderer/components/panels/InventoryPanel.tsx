@@ -901,7 +901,7 @@ function InventoryContent({
 		<div
 			className={cx(
 				"relative flex flex-col overflow-hidden",
-				embedded ? "settings-embedded-panel" : "h-[72vh]",
+				embedded ? "settings-embedded-panel" : "omp-docked-fill h-[72vh]",
 				detailPlugin && "settings-plugin-detail-open",
 			)}
 		>

@@ -633,7 +633,6 @@ test("failed preference writes retain edits and never allow a premature restart"
 	});
 	await page.getByRole("button", { name: "Settings", exact: true }).click();
 	const settings = page.getByRole("dialog");
-	await settings.getByRole("button", { name: "System & advanced", exact: true }).click();
 	await settings
 		.locator(".settings-nav-item")
 		.filter({ hasText: /^Advanced$/ })

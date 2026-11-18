@@ -2,6 +2,7 @@ import { Bot, Diff, FolderTree, Globe, LayoutDashboard, MessageCircleQuestion, S
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useActiveTabRouteReady } from "../../hooks/use-active-tab-route";
+import { useViewportWidth } from "../../hooks/use-viewport-width";
 import { cx } from "../../lib/format";
 import { useT } from "../../lib/i18n";
 import { scrollStripOnWheel, useActiveChipInView } from "../../lib/strip-scroll";
@@ -21,12 +22,8 @@ const MIN_WIDTH = 360;
 const PANEL_WIDTH_PREF = "gui.panelWidth";
 const COMPACT_WIDTH = 1000;
 
-function getViewportWidth(): number {
-	return Number.isFinite(window.innerWidth) && window.innerWidth > 0 ? window.innerWidth : 1440;
-}
-
 function defaultPanelWidth(viewportWidth: number): number {
-	return viewportWidth <= COMPACT_WIDTH ? 460 : Math.max(MIN_WIDTH, Math.round(viewportWidth * 0.28));
+	return Math.max(MIN_WIDTH, Math.round(viewportWidth * 0.28));
 }
 
 const TABS: { id: PanelTab; labelKey: string; icon: typeof Diff }[] = [
@@ -98,12 +95,12 @@ export function PanelContainer() {
 	const visiblePanelTab = isChat && !CHAT_PANEL_TABS.has(panelTab) ? "files" : panelTab;
 	const agentsSignal = useAgentsTabSignal();
 
-	const [viewportWidth, setViewportWidth] = useState(getViewportWidth);
-	const [width, setWidth] = useState(() => defaultPanelWidth(getViewportWidth()));
-	const [widthHydrated, setWidthHydrated] = useState(false);
+	const viewportWidth = useViewportWidth();
+	const [width, setWidth] = useState<number | "full" | null>(null);
 	const dragging = useRef(false);
 	const minWidth = Math.min(MIN_WIDTH, viewportWidth);
-	const panelWidth = Math.min(width, viewportWidth);
+	const panelWidth =
+		width === "full" ? viewportWidth : Math.min(width ?? defaultPanelWidth(viewportWidth), viewportWidth);
 	const atLeftEdge = panelWidth === viewportWidth;
 	// Switch to an overlay once a docked pane would crowd the conversation.
 	const overlay = viewportWidth <= COMPACT_WIDTH || split || panelWidth > viewportWidth * 0.55;
@@ -111,41 +108,29 @@ export function PanelContainer() {
 	useEffect(() => {
 		let cancelled = false;
 		const prefs = window.omp?.prefs;
-		if (typeof prefs?.get !== "function") {
-			setWidthHydrated(true);
-			return;
-		}
+		if (typeof prefs?.get !== "function") return;
 		void prefs
 			.get(PANEL_WIDTH_PREF)
 			.then(value => {
 				if (cancelled) return;
-				const saved = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
-				if (saved !== null) {
-					setWidth(Math.max(MIN_WIDTH, saved));
+				if (value === "full") setWidth(current => current ?? "full");
+				else if (typeof value === "number" && Number.isFinite(value)) {
+					setWidth(current => current ?? Math.max(MIN_WIDTH, Math.round(value)));
 				}
-				setWidthHydrated(true);
 			})
-			.catch(() => {
-				if (!cancelled) setWidthHydrated(true);
-			});
+			.catch(() => {});
 		return () => {
 			cancelled = true;
 		};
 	}, []);
 
 	useEffect(() => {
-		if (!widthHydrated || typeof window.omp?.prefs?.set !== "function") return;
+		if (width === null || typeof window.omp?.prefs?.set !== "function") return;
 		const timer = window.setTimeout(() => {
-			void window.omp.prefs.set(PANEL_WIDTH_PREF, Math.round(width)).catch(() => {});
+			void window.omp.prefs.set(PANEL_WIDTH_PREF, width).catch(() => {});
 		}, 150);
 		return () => window.clearTimeout(timer);
-	}, [width, widthHydrated]);
-
-	useEffect(() => {
-		const updateViewport = () => setViewportWidth(getViewportWidth());
-		window.addEventListener("resize", updateViewport);
-		return () => window.removeEventListener("resize", updateViewport);
-	}, []);
+	}, [width]);
 
 	const startDrag = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
 		dragging.current = true;
@@ -155,7 +140,7 @@ export function PanelContainer() {
 	const onDrag = useCallback(
 		(e: ReactPointerEvent<HTMLDivElement>) => {
 			if (!dragging.current) return;
-			setWidth(Math.min(viewportWidth, Math.max(minWidth, viewportWidth - e.clientX)));
+			setWidth(e.clientX <= 0 ? "full" : Math.max(minWidth, viewportWidth - e.clientX));
 		},
 		[minWidth, viewportWidth],
 	);
@@ -247,7 +232,7 @@ export function PanelContainer() {
 						event.key === "Home"
 							? minWidth
 							: event.key === "End"
-								? viewportWidth
+								? "full"
 								: Math.min(
 										viewportWidth,
 										Math.max(minWidth, panelWidth + (event.key === "ArrowLeft" ? 24 : -24)),

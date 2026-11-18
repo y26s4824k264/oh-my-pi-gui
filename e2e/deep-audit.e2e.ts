@@ -837,7 +837,7 @@ test("deep GUI audit: settings rows, nested controls, and command discoverabilit
 		// executing it and retain the TUI-only negative contract.
 		// The settings home also exposes the same live palette entry, so the
 		// discoverability action is exercised through its second-level surface.
-		await settings.getByLabel("Close").click();
+		await settings.getByRole("button", { name: "Back to chat", exact: true }).click();
 		await expect(settings).toHaveCount(0);
 		await page.getByRole("button", { name: "Settings", exact: true }).click();
 		const capabilitiesSettings = page.getByRole("dialog", { name: "Settings", exact: true });
