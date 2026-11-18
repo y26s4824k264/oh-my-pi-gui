@@ -316,13 +316,6 @@ kbd,
 	}
 }
 
-@media (max-width: 1000px) {
-	.omp-sidebar-lane {
-		gap: 4px;
-		padding-inline: 6px;
-	}
-}
-
 /* A centered dialog tall or wide enough to reach the controls stays below them. */
 :root[data-platform]:not([data-fullscreen]) .omp-dialog-overlay.items-center {
 	padding-top: 3rem;
