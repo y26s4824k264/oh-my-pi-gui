@@ -579,6 +579,7 @@ export const ru: Record<string, string> = {
 	"sidebar.menu.open": "Открыть",
 	"sidebar.menu.taskRunning": "Эта задача сейчас выполняется",
 	"sidebar.groupMenu": "Действия с рабочей областью",
+	"sidebar.newSessionInProject": "Новая сессия в проекте «{name}»",
 	"sidebar.pinFailed": "Не удалось сохранить список закреплённых.",
 	"sidebar.pinned": "Закреплённые",
 	"sidebar.pairedWith": "В паре с «{title}»",

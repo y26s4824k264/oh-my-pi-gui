@@ -591,6 +591,7 @@ export const en: Record<string, string> = {
 	"sidebar.menu.open": "Open",
 	"sidebar.menu.taskRunning": "This task is currently running",
 	"sidebar.groupMenu": "Workspace actions",
+	"sidebar.newSessionInProject": "New session in {name}",
 	"sidebar.pinFailed": "Could not save the pinned list.",
 	"sidebar.pinned": "Pinned",
 	"sidebar.pairedWith": "Split with “{title}”",

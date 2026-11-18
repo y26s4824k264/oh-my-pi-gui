@@ -728,8 +728,7 @@ kbd,
 	background: var(--omp-sidebar-item-hover);
 }
 
-.omp-sidebar-session-actions,
-.omp-sidebar-workspace-actions {
+.omp-sidebar-session-actions {
 	position: absolute;
 	top: 50%;
 	right: 4px;
@@ -752,10 +751,7 @@ kbd,
 
 .omp-sidebar-session-row[data-has-actions="true"]:hover .omp-sidebar-session-actions,
 .omp-sidebar-session-row[data-has-actions="true"]:is(:focus-visible, :has(:focus-visible)) .omp-sidebar-session-actions,
-.omp-sidebar-session-row[data-actions-open="true"] .omp-sidebar-session-actions,
-.omp-sidebar-workspace-row:hover .omp-sidebar-workspace-actions,
-.omp-sidebar-workspace-row:has(:focus-visible) .omp-sidebar-workspace-actions,
-.omp-sidebar-workspace-row[data-actions-open="true"] .omp-sidebar-workspace-actions {
+.omp-sidebar-session-row[data-actions-open="true"] .omp-sidebar-session-actions {
 	visibility: visible;
 	pointer-events: auto;
 	opacity: 1;
@@ -768,10 +764,8 @@ kbd,
 		linear-gradient(to right, transparent, var(--omp-sidebar-bg) 14px);
 }
 
-/* Recency and counts are resting information: they step aside for actions.
-   A row's family count goes too; the chevron in its status slot opens it. */
+/* Recency and family counts step aside for session actions. */
 .omp-sidebar-time,
-.omp-sidebar-group-count,
 .omp-sidebar-session-row .omp-sidebar-agent-pill {
 	transition: opacity var(--omp-motion-fast) var(--omp-ease);
 }
@@ -780,10 +774,7 @@ kbd,
 .omp-sidebar-session-row[data-has-actions="true"]:is(:focus-visible, :has(:focus-visible)) .omp-sidebar-time,
 .omp-sidebar-session-row[data-actions-open="true"] .omp-sidebar-time,
 .omp-sidebar-session-row[data-has-actions="true"]:hover .omp-sidebar-agent-pill,
-.omp-sidebar-session-row[data-has-actions="true"]:is(:focus-visible, :has(:focus-visible)) .omp-sidebar-agent-pill,
-.omp-sidebar-workspace-row:hover .omp-sidebar-group-count,
-.omp-sidebar-workspace-row:has(:focus-visible) .omp-sidebar-group-count,
-.omp-sidebar-workspace-row[data-actions-open="true"] .omp-sidebar-group-count {
+.omp-sidebar-session-row[data-has-actions="true"]:is(:focus-visible, :has(:focus-visible)) .omp-sidebar-agent-pill {
 	opacity: 0;
 }
 

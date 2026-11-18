@@ -565,6 +565,7 @@ export const th: Record<string, string> = {
 	"sidebar.menu.open": "เปิด",
 	"sidebar.menu.taskRunning": "งานนี้กำลังทำงานอยู่",
 	"sidebar.groupMenu": "การจัดการพื้นที่ทำงาน",
+	"sidebar.newSessionInProject": "สร้างเซสชันใหม่ในโปรเจกต์ {name}",
 	"sidebar.pinFailed": "บันทึกรายการที่ปักหมุดไม่สำเร็จ",
 	"sidebar.pinned": "ปักหมุดแล้ว",
 	"sidebar.pairedWith": "แยกหน้าจอคู่กับ “{title}”",

@@ -563,6 +563,7 @@ export const zh: Record<string, string> = {
 	"sidebar.menu.open": "打开",
 	"sidebar.menu.taskRunning": "该任务正在执行中",
 	"sidebar.groupMenu": "工作区操作",
+	"sidebar.newSessionInProject": "在 {name} 中新建会话",
 	"sidebar.pinFailed": "置顶列表保存失败。",
 	"sidebar.pinned": "已置顶",
 	"sidebar.pairedWith": "与「{title}」分屏",

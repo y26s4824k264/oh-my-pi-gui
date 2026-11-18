@@ -747,7 +747,6 @@ describe("Sidebar menus and pinned ordering", () => {
 
 		const header = container.querySelector('[data-workspace-group="/work/alpha"]') as unknown as Element;
 		expect(header.querySelectorAll('button[aria-haspopup="menu"]')).toHaveLength(1);
-		expect(header.querySelector('[aria-label="New agent session here"]')).toBeNull();
 		await fire(header, "onContextMenu");
 		const add = [...document.querySelectorAll('[role="menuitem"]')].find(item =>
 			item.textContent?.includes("New agent session here"),
@@ -759,6 +758,27 @@ describe("Sidebar menus and pinned ordering", () => {
 			sessionPath: undefined,
 			worktree: undefined,
 		});
+	});
+
+	it.each(["beta", "empty"])("opens a new conversation from the %s project row", async project => {
+		const omp = installMockOmp(LIST);
+		seedStores();
+		const cwd = `/work/${project}`;
+		await useSidebarPrefs.getState().addWorkspace("/work/empty");
+		useUiStore.getState().openPlugins();
+		await mount(<Sidebar />);
+
+		const header = container.querySelector(`[data-workspace-group="${cwd}"]`);
+		await fire(header?.querySelector(`button[aria-label="New session in ${project}"]`) ?? null, "onClick");
+
+		expect(omp.tabs.spawn).toHaveBeenCalledExactlyOnceWith({
+			cwd,
+			kind: "agent",
+			sessionPath: undefined,
+			worktree: undefined,
+		});
+		expect(useUiStore.getState().pluginsOpen).toBe(false);
+		expect(useTabsStore.getState().activeTabId).toBe("t-new");
 	});
 
 	it("renders collapsed groups as absent from the DOM instead of inert subtrees", async () => {

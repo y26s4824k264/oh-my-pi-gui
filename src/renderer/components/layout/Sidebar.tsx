@@ -33,6 +33,7 @@ import {
 	Pin,
 	PinOff,
 	Plug,
+	Plus,
 	Puzzle,
 	RefreshCw,
 	Rows2,
@@ -650,6 +651,10 @@ export function Sidebar() {
 		}
 		setWorkspaceOpen(true);
 	};
+	const startProjectSession = (projectCwd: string) => {
+		useUiStore.getState().returnToConversation();
+		void openTab({ cwd: projectCwd });
+	};
 
 	// Explicit parallel action: open this session in a NEW window with its own
 	// sidecar, leaving the current window's running session untouched.
@@ -1159,7 +1164,7 @@ export function Sidebar() {
 		);
 	};
 
-	/** One collapsible group header: icon, name, count, and an optional menu. */
+	/** One collapsible group header with optional project actions. */
 	const renderGroupHeader = ({
 		id,
 		name,
@@ -1169,7 +1174,6 @@ export function Sidebar() {
 		onToggle,
 		pinned,
 		actions,
-		menuOpen,
 		onContextMenu,
 		current,
 	}: {
@@ -1181,13 +1185,11 @@ export function Sidebar() {
 		onToggle: () => void;
 		pinned?: boolean;
 		actions?: ReactNode;
-		menuOpen?: boolean;
 		onContextMenu?: (event: ReactMouseEvent) => void;
 		current?: boolean;
 	}) => (
 		<div
 			data-workspace-group={id.startsWith("__") ? undefined : id}
-			data-actions-open={menuOpen ? true : undefined}
 			onContextMenu={onContextMenu}
 			className={cx(
 				"omp-sidebar-workspace-row omp-color-fade group/header flex h-[30px] w-full items-center rounded-lg px-2 text-omp-md",
@@ -1223,10 +1225,7 @@ export function Sidebar() {
 				{count}
 			</span>
 			{actions && (
-				<span
-					className="omp-sidebar-workspace-actions flex shrink-0 items-center justify-end gap-0.5"
-					onClick={event => event.stopPropagation()}
-				>
+				<span className="ml-1 flex shrink-0 items-center gap-0.5" onClick={event => event.stopPropagation()}>
 					{actions}
 				</span>
 			)}
@@ -1594,6 +1593,7 @@ export function Sidebar() {
 					{visibleGroups.map(group => {
 						const groupCollapsed = isCollapsedGroup(group.cwd);
 						const menuOpen = groupMenu?.group.cwd === group.cwd;
+						const newSessionLabel = t("sidebar.newSessionInProject", { name: group.name });
 						return (
 							<div key={group.cwd} className="mb-1">
 								{renderGroupHeader({
@@ -1604,29 +1604,39 @@ export function Sidebar() {
 									collapsedState: groupCollapsed,
 									onToggle: () => {
 										if (group.sessions.length > 0) toggleGroup(group.cwd);
-										else void openTab({ cwd: group.cwd });
+										else startProjectSession(group.cwd);
 									},
 									pinned: pinnedGroups.includes(group.cwd),
 									current: group.cwd === cwd,
 									onContextMenu: event => setGroupMenu({ anchor: anchorFromEvent(event), group }),
-									menuOpen,
 									actions: (
-										<button
-											type="button"
-											title={t("sidebar.groupMenu")}
-											aria-label={t("sidebar.groupMenu")}
-											aria-haspopup="menu"
-											aria-expanded={menuOpen}
-											className={rowActionButton}
-											onClick={event => {
-												const rect = event.currentTarget.getBoundingClientRect();
-												setGroupMenu(
-													menuOpen ? null : { anchor: { x: rect.left, y: rect.bottom + 4 }, group },
-												);
-											}}
-										>
-											<MoreHorizontal size={13} />
-										</button>
+										<>
+											<button
+												type="button"
+												title={newSessionLabel}
+												aria-label={newSessionLabel}
+												className={rowActionButton}
+												onClick={() => startProjectSession(group.cwd)}
+											>
+												<Plus aria-hidden="true" size={14} />
+											</button>
+											<button
+												type="button"
+												title={t("sidebar.groupMenu")}
+												aria-label={t("sidebar.groupMenu")}
+												aria-haspopup="menu"
+												aria-expanded={menuOpen}
+												className={rowActionButton}
+												onClick={event => {
+													const rect = event.currentTarget.getBoundingClientRect();
+													setGroupMenu(
+														menuOpen ? null : { anchor: { x: rect.left, y: rect.bottom + 4 }, group },
+													);
+												}}
+											>
+												<MoreHorizontal aria-hidden="true" size={13} />
+											</button>
+										</>
 									),
 								})}
 								{/* Collapsed groups render nothing: a long-lived install with
@@ -1846,7 +1856,7 @@ export function Sidebar() {
 									icon: SquareTerminal,
 									onSelect: () => {
 										setGroupMenu(null);
-										void openTab({ cwd: groupMenu.group.cwd });
+										startProjectSession(groupMenu.group.cwd);
 									},
 								},
 								{
