@@ -32,6 +32,7 @@ import { SidecarManager, type SidecarOptions } from "./sidecar";
 import { SidecarPool } from "./sidecar-pool";
 import { StatsClient } from "./stats-client";
 import { StatsServerManager } from "./stats-server";
+import { handleStdioDisconnects } from "./stdio-errors";
 import { type PersistedTabLayout, sanitizePersistedTabLayouts } from "./tab-layout";
 import { createTray, destroyTray } from "./tray";
 import { setupUpdater } from "./updater";
@@ -44,6 +45,19 @@ if (userDataDirectory) {
 	const directory = resolve(userDataDirectory);
 	mkdirSync(directory, { recursive: true });
 	app.setPath("userData", directory);
+}
+
+// A GUI launched from a terminal can outlive that terminal's stdout/stderr.
+// Log a disconnected stream to disk, without writing back to either stream.
+for (const name of ["stdout", "stderr"] as const) {
+	handleStdioDisconnects(process[name], error => {
+		writeRuntimeLog({
+			source: "unknown",
+			message: `Main process ${name} disconnected: ${error.message}`,
+			stack: error.stack,
+			details: { stream: name, code: error.code, syscall: error.syscall },
+		});
+	});
 }
 
 // Software-rendering escape hatch (must precede whenReady): a crashed GPU

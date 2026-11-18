@@ -23,6 +23,9 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		}),
 	);
 	await fs.writeFile(path.join(project, "README.md"), "# Local ARM audit\n");
+	const attachmentName = "floor plan.ifc";
+	const attachmentPath = path.join(project, attachmentName);
+	await fs.writeFile(attachmentPath, "ISO-10303-21;");
 	const env = {
 		...process.env,
 		PI_CODING_AGENT_DIR: agent,
@@ -69,6 +72,31 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 			expect(runtime.isPackaged).toBe(true);
 			expect(runtime.sidecarOverride).toBeNull();
 		}
+		await closeWelcome("Welcome to omp", "Close");
+		// The file input creates a real Electron File with a local path.
+		await page.evaluate(() => {
+			const input = document.createElement("input");
+			input.type = "file";
+			input.id = "drag-test-file";
+			document.body.appendChild(input);
+		});
+		await page.locator("#drag-test-file").setInputFiles(attachmentPath);
+		const composer = page.locator(".omp-composer-box textarea");
+		await composer.evaluate(textarea => {
+			const input = document.querySelector<HTMLInputElement>("#drag-test-file");
+			const file = input?.files?.[0];
+			if (!file) throw new Error("Missing drag fixture");
+			const dataTransfer = new DataTransfer();
+			dataTransfer.items.add(file);
+			textarea.dispatchEvent(new DragEvent("drop", { dataTransfer, bubbles: true, cancelable: true }));
+			input.remove();
+		});
+		await expect(composer).toHaveValue(`@"${attachmentName}" `);
+		const removeAttachment = page.getByRole("button", { name: `Remove ${attachmentName}`, exact: true });
+		await expect(removeAttachment).toBeVisible();
+		await removeAttachment.click();
+		await expect(composer).toHaveValue("");
+		await expect(removeAttachment).toHaveCount(0);
 		await fs.writeFile("test-results/runtime-selection.json", JSON.stringify(runtime, null, 2));
 		const evidence = await page.evaluate(
 			async exportPath => {
@@ -135,11 +163,6 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await exportPage.screenshot({ path: "test-results/exported-session.png", scale: "css", animations: "disabled" });
 		await exportPage.close();
 		await page.screenshot({ path: "test-results/04-real-core.png", scale: "css", animations: "disabled" });
-		await expect(page.getByRole("dialog", { name: "Welcome to omp" })).toBeVisible();
-		await page
-			.getByRole("dialog", { name: "Welcome to omp" })
-			.getByRole("button", { name: "Close", exact: true })
-			.click();
 		await expect(page.getByRole("dialog")).toHaveCount(0);
 		const original = evidence.saved.data as RpcSessionState;
 		await page.locator("textarea").first().fill("/new");

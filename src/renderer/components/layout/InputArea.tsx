@@ -2,6 +2,7 @@ import {
 	ArrowUp,
 	Box,
 	ChevronDown,
+	File as FileIcon,
 	History,
 	ListEnd,
 	Loader2,
@@ -41,7 +42,7 @@ import {
 import { parseQueueShorthand, splitQueuedMessages } from "../../lib/queue-input";
 import { insertQuote } from "../../lib/quote-selection";
 import { useTabRpc } from "../../lib/tab-rpc";
-import { useComposerStore } from "../../stores/composer";
+import { type ComposerFile, useComposerStore } from "../../stores/composer";
 import { useInputHistoryStore } from "../../stores/input-history";
 import { useModelStore } from "../../stores/model";
 import { type SessionStore, useSessionStore } from "../../stores/session";
@@ -63,8 +64,11 @@ import {
 	appendMentions,
 	droppedFileMention,
 	fileToImage,
+	findMention,
+	isInlineImage,
 	listMentionFiles,
 	mentionFileCache,
+	removeMention,
 } from "./input-area-utils";
 import { ThinkingControl } from "./ThinkingControl";
 import { type CompletionItem, type CompletionMenu, useCompletionMenu } from "./use-completion-menu";
@@ -112,6 +116,9 @@ export function InputArea() {
 	const setText = useComposerStore(s => s.setDraft);
 	const images = useComposerStore(s => s.images);
 	const setImages = useComposerStore(s => s.setImages);
+	const files = useComposerStore(s => s.files);
+	const addFiles = useComposerStore(s => s.addFiles);
+	const attachedFiles = useMemo(() => files.filter(file => findMention(text, file.mention) !== -1), [files, text]);
 	const [menu, setMenu] = useState<CompletionMenu | null>(null);
 	const menuListRef = useRef<HTMLDivElement>(null);
 	// The menu lists every match and scrolls; keep the keyboard selection in view.
@@ -684,8 +691,41 @@ export function InputArea() {
 		}
 	};
 
-	// Dropping files (TUI parity: a dragged path lands in the editor): images
-	// attach like a paste; anything else becomes an @mention the agent resolves.
+	const attachFiles = (incoming: File[]) => {
+		if (collabReadOnly) return;
+		const localFiles: ComposerFile[] = [];
+		const imageReads: ReturnType<typeof fileToImage>[] = [];
+		let unavailable = false;
+		for (const file of incoming) {
+			if (isInlineImage(file)) {
+				imageReads.push(fileToImage(file));
+				continue;
+			}
+			const path = window.omp.app.pathForFile(file);
+			if (path) localFiles.push({ name: file.name, mention: droppedFileMention(path, cwd) });
+			else unavailable = true;
+		}
+		if (localFiles.length > 0) {
+			addFiles(localFiles);
+			const mentions = [...new Set(localFiles.map(file => file.mention))];
+			setText(current =>
+				appendMentions(
+					current,
+					mentions.filter(mention => findMention(current, mention) === -1),
+				),
+			);
+		}
+		const reportFailure = () => toast({ variant: "warning", message: t("input.attachmentFailed") });
+		if (unavailable) reportFailure();
+		if (imageReads.length > 0) {
+			void Promise.allSettled(imageReads).then(results => {
+				const added = results.flatMap(result => (result.status === "fulfilled" ? [result.value] : []));
+				if (added.length > 0) setImages(previous => [...previous, ...added]);
+				if (!unavailable && added.length < results.length) reportFailure();
+			});
+		}
+	};
+
 	const [dragActive, setDragActive] = useState(false);
 	const draggingFiles = (e: DragEvent<HTMLDivElement>) => e.dataTransfer.types.includes("Files");
 	const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -700,19 +740,10 @@ export function InputArea() {
 	};
 	const handleDrop = (e: DragEvent<HTMLDivElement>) => {
 		setDragActive(false);
-		const files = Array.from(e.dataTransfer.files);
-		if (files.length === 0 || collabReadOnly) return;
+		if (e.dataTransfer.files.length === 0) return;
 		e.preventDefault();
-		const dropped = files.filter(file => file.type.startsWith("image/"));
-		if (dropped.length > 0) {
-			void Promise.all(dropped.map(fileToImage)).then(added => setImages(prev => [...prev, ...added]));
-		}
-		const mentions = files
-			.filter(file => !file.type.startsWith("image/"))
-			.map(file => window.omp.app.pathForFile(file))
-			.filter(filePath => filePath.length > 0)
-			.map(filePath => droppedFileMention(filePath, cwd));
-		if (mentions.length > 0) setText(current => appendMentions(current, mentions));
+		if (collabReadOnly) return;
+		attachFiles(Array.from(e.dataTransfer.files));
 		requestAnimationFrame(() => textareaRef.current?.focus());
 	};
 
@@ -941,6 +972,30 @@ export function InputArea() {
 									))}
 								</div>
 							)}
+							{attachedFiles.length > 0 && (
+								<div className="mb-3 flex flex-wrap gap-2">
+									{attachedFiles.map(file => (
+										<div
+											key={file.mention}
+											className="flex max-w-full items-center gap-1.5 rounded-md border border-(--omp-border-muted) py-1 pl-2 pr-1 text-omp-sm"
+										>
+											<FileIcon size={14} className="shrink-0" aria-hidden="true" />
+											<span className="truncate" title={file.mention}>
+												{file.name}
+											</span>
+											<button
+												type="button"
+												disabled={collabReadOnly}
+												aria-label={t("input.removeFileAttachment", { name: file.name })}
+												onClick={() => setText(current => removeMention(current, file.mention))}
+												className="shrink-0 rounded p-1 text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text)"
+											>
+												<X size={12} />
+											</button>
+										</div>
+									))}
+								</div>
+							)}
 							<textarea
 								readOnly={collabReadOnly}
 								ref={textareaRef}
@@ -1042,16 +1097,10 @@ export function InputArea() {
 								<input
 									ref={fileInputRef}
 									type="file"
-									accept="image/*"
 									multiple
 									className="hidden"
 									onChange={event => {
-										const files = Array.from(event.target.files ?? []);
-										if (files.length > 0) {
-											void Promise.all(files.map(fileToImage)).then(pasted =>
-												setImages(previous => [...previous, ...pasted]),
-											);
-										}
+										attachFiles(Array.from(event.target.files ?? []));
 										event.target.value = "";
 									}}
 								/>

@@ -7,6 +7,7 @@ import type { ComposerImage } from "../../stores/composer";
 
 const MENTION_FS_DEPTH = 8;
 const MENTION_FS_MAX_ENTRIES = 2000;
+const INLINE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
 
 /** Cap on completion menu items. */
 export const MAX_MENU_ITEMS = 8;
@@ -80,6 +81,10 @@ export function listMentionFiles(cwd: string, tabId?: string | null): Promise<st
 	return task;
 }
 
+export function isInlineImage(file: File): boolean {
+	return INLINE_IMAGE_TYPES.has(file.type);
+}
+
 export function fileToImage(file: File): Promise<ComposerImage> {
 	const { promise, resolve, reject } = Promise.withResolvers<ComposerImage>();
 	const reader = new FileReader();
@@ -98,14 +103,32 @@ export function fileToImage(file: File): Promise<ComposerImage> {
 
 /**
  * Composer mention for a dropped file: workspace-relative when the file sits
- * under `cwd`, absolute otherwise, quoted when it contains whitespace (the
- * agent's mention grammar accepts `@"…"`).
+ * under `cwd`, absolute otherwise. Quote paths that the agent's mention
+ * parser would split or trim.
  */
 export function droppedFileMention(filePath: string, cwd: string): string {
 	const normalized = filePath.replace(/\\/g, "/");
 	const root = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
 	const relative = root && normalized.startsWith(`${root}/`) ? normalized.slice(root.length + 1) : filePath;
-	return /\s/.test(relative) ? `@"${relative}"` : `@${relative}`;
+	if (!/[\s@"']|^[\x60([{<]|[)\]}>.,;:!?\x60]$/.test(relative)) return `@${relative}`;
+	const quote = relative.includes('"') ? "'" : '"';
+	return `@${quote}${relative}${quote}`;
+}
+
+export function findMention(draft: string, mention: string): number {
+	for (const match of draft.matchAll(/(?:^|\s)(@(?:"[^"]+"|'[^']+'|[^\s@]+))/g)) {
+		if (match[1] === mention) return match.index + match[0].length - mention.length;
+	}
+	return -1;
+}
+
+export function removeMention(draft: string, mention: string): string {
+	const start = findMention(draft, mention);
+	if (start < 0) return draft;
+	const end = start + mention.length;
+	const tail = draft[end] === " " ? end + 1 : end;
+	const head = tail === draft.length && draft[start - 1] === " " ? start - 1 : start;
+	return draft.slice(0, head) + draft.slice(tail);
 }
 
 /** Append mentions to a draft, keeping one space between the draft and each mention. */

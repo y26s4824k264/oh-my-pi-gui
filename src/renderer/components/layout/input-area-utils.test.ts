@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendMentions, droppedFileMention } from "./input-area-utils";
+import { appendMentions, droppedFileMention, removeMention } from "./input-area-utils";
 
 describe("droppedFileMention", () => {
 	it("makes files under the workspace relative", () => {
@@ -19,6 +19,11 @@ describe("droppedFileMention", () => {
 	it("normalizes Windows separators when matching the workspace", () => {
 		expect(droppedFileMention("C:\\work\\app\\src\\a.ts", "C:\\work\\app")).toBe("@src/a.ts");
 	});
+
+	it("quotes punctuation that the agent would trim or split", () => {
+		expect(droppedFileMention("/work/app/[a]@b.ifc", "/work/app")).toBe('@"[a]@b.ifc"');
+		expect(droppedFileMention('/work/app/model "final".ifc', "/work/app")).toBe(`@'model "final".ifc'`);
+	});
 });
 
 describe("appendMentions", () => {
@@ -27,5 +32,16 @@ describe("appendMentions", () => {
 		expect(appendMentions("look at", ["@a.ts", "@b.ts"])).toBe("look at @a.ts @b.ts ");
 		expect(appendMentions("look at ", ["@a.ts"])).toBe("look at @a.ts ");
 		expect(appendMentions("unchanged", [])).toBe("unchanged");
+	});
+});
+
+describe("removeMention", () => {
+	it("removes just the selected attachment, preserving other draft text", () => {
+		expect(removeMention('Compare @"floor plan.dwg" @plan.dwg.zip @plan.dwg ', "@plan.dwg")).toBe(
+			'Compare @"floor plan.dwg" @plan.dwg.zip',
+		);
+		expect(removeMention('@"floor plan.dwg" then check the dimensions', '@"floor plan.dwg"')).toBe(
+			"then check the dimensions",
+		);
 	});
 });
