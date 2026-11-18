@@ -14,6 +14,7 @@ import ReactMarkdown, { type Components, defaultUrlTransform, type Options } fro
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
+import remarkCjkFriendly from "remark-cjk-friendly/parseOnly";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
@@ -68,7 +69,9 @@ interface MarkdownRendererProps {
 // it keep prices like `$15 … $25` literal instead of letting them eat the
 // markup between them. The autolink boundary follows remark-gfm: its mdast
 // transform trims the links GFM's own transform adds.
+// CJK-aware emphasis accepts labels like `**数量：**16` at the parser level.
 const REMARK_PLUGINS: Options["remarkPlugins"] = [
+	remarkCjkFriendly,
 	remarkGfm,
 	remarkAutolinkBoundary,
 	remarkFilePaths,
@@ -77,6 +80,7 @@ const REMARK_PLUGINS: Options["remarkPlugins"] = [
 	remarkLatexMath,
 ];
 const REMARK_PLUGINS_LITERAL_SINGLE_DOLLAR: Options["remarkPlugins"] = [
+	remarkCjkFriendly,
 	remarkGfm,
 	remarkAutolinkBoundary,
 	remarkFilePaths,
