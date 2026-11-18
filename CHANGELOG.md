@@ -14,6 +14,7 @@
 
 ### Fixed
 
+- The Memory page opens across projects, and its scope selector responds to clicks in the window header.
 - Sent attachments appear as file cards without exposing their full paths in the message body.
 
 ## [0.9.45] - 2026-11-18
