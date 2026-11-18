@@ -125,7 +125,7 @@ export type RpcCommand =
 
 	// State
 	| { id?: string; type: "get_state" }
-	| { id?: string; type: "set_fast_mode"; enabled: boolean }
+	| { id?: string; type: "set_fast_mode"; enabled: boolean; ultrafast?: boolean }
 	| { id?: string; type: "set_slow_mode"; enabled: boolean }
 	| {
 			id?: string;
@@ -735,6 +735,7 @@ export interface RpcSessionState {
 	autoRetryEnabled: boolean;
 	fastModeEnabled: boolean;
 	fastModeActive: boolean;
+	fastModeUltrafast: boolean;
 	/** `/slow` applies to the active model (flex tier on OpenAI/Google, low priority on Claude subscriptions). */
 	slowModeSupported: boolean;
 	/** `/slow` is on for the active model; always `false` when `slowModeSupported` is `false`. */
@@ -2441,7 +2442,7 @@ export type RpcResponse =
 			type: "response";
 			command: "set_fast_mode";
 			success: true;
-			data: { enabled: boolean; active: boolean };
+			data: { enabled: boolean; active: boolean; ultrafast: boolean };
 	  }
 	| {
 			id?: string;

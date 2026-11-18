@@ -2,11 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Scout agents follow the active conversation model by default and honor the configured task model or per-agent overrides.
+
+### Added
+
+- RPC clients can select standard, fast, or ultrafast response speed on supported models.
+
 ### Fixed
 
 - RPC hosts can remove a global settings override again, restoring the value from the remaining configuration layers.
 - Custom compiled distributions can include their HTML session viewer so exports open without an upstream-hosted viewer release.
-### Added
+
 ## [18.22.2] - 2026-11-18
 
 ### Added

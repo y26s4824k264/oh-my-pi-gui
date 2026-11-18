@@ -20,6 +20,27 @@ describe("bundled agent parsing", () => {
 		expect(task?.thinkingLevel).toBe(AUTO_THINKING);
 	});
 
+	it("scouts on the current conversation model when the task role is unset", () => {
+		const settings = Settings.isolated({
+			modelRoles: { default: "anthropic/opus", smol: "my-proxy/deepseek-v4.1-flash:max" },
+		});
+		const scout = getBundledAgent("scout");
+		const options = {
+			agentModel: scout?.model,
+			settings,
+			activeModelPattern: "openai-codex/gpt-6.2-sol",
+		};
+
+		expect(resolveAgentModelSelection(options)).toEqual({
+			patterns: ["openai-codex/gpt-6.2-sol"],
+			role: undefined,
+		});
+		expect(resolveAgentModelSelection({ ...options, settingsOverride: "@smol" })).toEqual({
+			patterns: ["my-proxy/deepseek-v4.1-flash:max"],
+			role: "smol",
+		});
+	});
+
 	it("accepts security-reviewer findings with optional remediation metadata", () => {
 		const securityReviewer = getBundledAgent("security-reviewer");
 		const findingValidator = buildOutputValidator(securityReviewer?.output).validator?.validateSection.get(
@@ -95,7 +116,7 @@ describe("bundled agent parsing", () => {
 		for (const [name, role, model] of [
 			["task", "task", "anthropic/sonnet"],
 			["sonic", "smol", "fast/hy3"],
-			["scout", "smol", "fast/hy3"],
+			["scout", "task", "anthropic/sonnet"],
 			["reviewer", "slow", "codex/sol"],
 		] as const) {
 			const agent = getBundledAgent(name);

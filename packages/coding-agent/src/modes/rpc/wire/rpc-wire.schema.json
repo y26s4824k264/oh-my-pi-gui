@@ -143,7 +143,7 @@
 			},
 			{
 				"name": "set_fast_mode",
-				"doc": "Enable or disable fast mode for the session.",
+				"doc": "Set Fast or, when the model supports it, Ultrafast serving for the session.",
 				"params": "SetFastModeParams",
 				"result": "FastModeResult",
 				"nullable": false,
@@ -2695,6 +2695,10 @@
 					"type": "boolean",
 					"default": false
 				},
+				"fastModeUltrafast": {
+					"type": "boolean",
+					"default": false
+				},
 				"slowModeSupported": {
 					"type": "boolean",
 					"description": "`/slow` applies to the active model.",
@@ -2932,6 +2936,9 @@
 					"type": "boolean"
 				},
 				"active": {
+					"type": "boolean"
+				},
+				"ultrafast": {
 					"type": "boolean"
 				}
 			},
@@ -6889,6 +6896,9 @@
 			"type": "object",
 			"properties": {
 				"enabled": {
+					"type": "boolean"
+				},
+				"ultrafast": {
 					"type": "boolean"
 				}
 			},

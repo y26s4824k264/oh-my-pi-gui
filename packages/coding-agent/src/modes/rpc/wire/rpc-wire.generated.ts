@@ -502,6 +502,7 @@ export interface SessionState {
 	autoCompactionEnabled?: boolean;
 	fastModeEnabled?: boolean;
 	fastModeActive?: boolean;
+	fastModeUltrafast?: boolean;
 	/** `/slow` applies to the active model. */
 	slowModeSupported?: boolean;
 	/** `/slow` is on for the active model; always `false` when `slowModeSupported` is `false`. */
@@ -576,6 +577,7 @@ export interface LineRange {
 export interface FastModeResult {
 	enabled: boolean;
 	active: boolean;
+	ultrafast?: boolean;
 }
 
 export interface CompactionResult {
@@ -1774,6 +1776,7 @@ export interface OpenSessionParams {
 
 export interface SetFastModeParams {
 	enabled: boolean;
+	ultrafast?: boolean;
 }
 
 export interface SetSlowModeParams {

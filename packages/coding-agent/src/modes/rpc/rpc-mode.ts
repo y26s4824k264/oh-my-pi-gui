@@ -3057,6 +3057,7 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 					fastModeEnabled: session.isFastModeEnabled(),
 					tokensPerSecond: calculateTokensPerSecond(session.messages, session.isStreaming),
 					fastModeActive: session.isFastModeActive(),
+					fastModeUltrafast: session.isUltrafastModeEnabled(),
 					slowModeSupported: session.isSlowModeSupported(),
 					slowModeEnabled: session.isSlowModeEnabled(),
 					slowModeScope: session.getSlowModeScope(),
@@ -3081,13 +3082,27 @@ export async function runRpcMode(session: AgentSession, options: RpcModeOptions 
 			}
 
 			case "set_fast_mode": {
-				const supported = session.setFastMode(command.enabled);
+				if (
+					typeof command.enabled !== "boolean" ||
+					(command.ultrafast !== undefined && typeof command.ultrafast !== "boolean") ||
+					(command.ultrafast && !command.enabled)
+				) {
+					return error(id, "set_fast_mode", "Ultrafast requires an enabled fast mode.");
+				}
+				const supported = command.ultrafast ? session.setUltrafastMode(true) : session.setFastMode(command.enabled);
 				if (command.enabled && !supported) {
-					return error(id, "set_fast_mode", "Fast mode is unavailable for the current model.");
+					return error(
+						id,
+						"set_fast_mode",
+						command.ultrafast
+							? "Ultrafast is unavailable for the current model."
+							: "Fast mode is unavailable for the current model.",
+					);
 				}
 				return success(id, "set_fast_mode", {
 					enabled: session.isFastModeEnabled(),
 					active: session.isFastModeActive(),
+					ultrafast: session.isUltrafastModeEnabled(),
 				});
 			}
 

@@ -87,8 +87,8 @@ export const rpcCommands: readonly RpcCommandSpec[] = [
 	{ name: "get_state", doc: "Snapshot the session state.", result: "SessionState" },
 	{
 		name: "set_fast_mode",
-		doc: "Enable or disable fast mode for the session.",
-		params: { enabled: "boolean" },
+		doc: "Set Fast or, when the model supports it, Ultrafast serving for the session.",
+		params: { enabled: "boolean", "ultrafast?": "boolean" },
 		result: "FastModeResult",
 	},
 	{
