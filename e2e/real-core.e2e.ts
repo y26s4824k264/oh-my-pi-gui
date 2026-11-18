@@ -82,13 +82,17 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		});
 		await page.locator("#drag-test-file").setInputFiles(attachmentPath);
 		const composer = page.locator(".omp-composer-box textarea");
-		await composer.evaluate(textarea => {
+		await page.locator(".omp-transcript-scroll").evaluate(transcript => {
 			const input = document.querySelector<HTMLInputElement>("#drag-test-file");
 			const file = input?.files?.[0];
 			if (!file) throw new Error("Missing drag fixture");
 			const dataTransfer = new DataTransfer();
 			dataTransfer.items.add(file);
-			textarea.dispatchEvent(new DragEvent("drop", { dataTransfer, bubbles: true, cancelable: true }));
+			const acceptsDrop = !transcript.dispatchEvent(
+				new DragEvent("dragover", { dataTransfer, bubbles: true, cancelable: true }),
+			);
+			if (!acceptsDrop) throw new Error("Transcript did not cancel the default file drop behavior");
+			transcript.dispatchEvent(new DragEvent("drop", { dataTransfer, bubbles: true, cancelable: true }));
 			input.remove();
 		});
 		await expect(composer).toHaveValue(`@"${attachmentName}" `);

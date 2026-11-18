@@ -15,7 +15,7 @@ import {
 	X,
 	Zap,
 } from "lucide-react";
-import type { ClipboardEvent, DragEvent, KeyboardEvent } from "react";
+import type { ClipboardEvent, KeyboardEvent } from "react";
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AvailableCommand, ImageContent } from "../../../shared/rpc-types";
@@ -42,7 +42,7 @@ import {
 import { parseQueueShorthand, splitQueuedMessages } from "../../lib/queue-input";
 import { insertQuote } from "../../lib/quote-selection";
 import { useTabRpc } from "../../lib/tab-rpc";
-import { type ComposerFile, useComposerStore } from "../../stores/composer";
+import { useComposerStore } from "../../stores/composer";
 import { useInputHistoryStore } from "../../stores/input-history";
 import { useModelStore } from "../../stores/model";
 import { type SessionStore, useSessionStore } from "../../stores/session";
@@ -60,18 +60,10 @@ import { ComposerModes } from "./ComposerModes";
 import { ContextStrategyBar } from "./ContextStrategyBar";
 import { DictationStrip } from "./DictationStrip";
 import { HistorySearchOverlay } from "./HistorySearchOverlay";
-import {
-	appendMentions,
-	droppedFileMention,
-	fileToImage,
-	findMention,
-	isInlineImage,
-	listMentionFiles,
-	mentionFileCache,
-	removeMention,
-} from "./input-area-utils";
+import { fileToImage, findMention, listMentionFiles, mentionFileCache, removeMention } from "./input-area-utils";
 import { ThinkingControl } from "./ThinkingControl";
 import { type CompletionItem, type CompletionMenu, useCompletionMenu } from "./use-completion-menu";
+import { useComposerFiles } from "./use-composer-files";
 import { useComposerSubmit } from "./use-composer-submit";
 import { useDictation } from "./use-dictation";
 
@@ -84,7 +76,7 @@ const MENTION_FS_DEBOUNCE_MS = 150;
  * off macOS) queues a follow-up, which holding the modifier previews.
  */
 export function InputArea() {
-	const collabReadOnly = useSessionStore(state => state.collab?.readOnly === true);
+	const { attachFiles, readOnly: collabReadOnly } = useComposerFiles();
 	const isStreaming = useSessionStore(s => s.isStreaming);
 	const t = useT();
 	const rpc = useTabRpc();
@@ -117,7 +109,6 @@ export function InputArea() {
 	const images = useComposerStore(s => s.images);
 	const setImages = useComposerStore(s => s.setImages);
 	const files = useComposerStore(s => s.files);
-	const addFiles = useComposerStore(s => s.addFiles);
 	const attachedFiles = useMemo(() => files.filter(file => findMention(text, file.mention) !== -1), [files, text]);
 	const [menu, setMenu] = useState<CompletionMenu | null>(null);
 	const menuListRef = useRef<HTMLDivElement>(null);
@@ -691,62 +682,6 @@ export function InputArea() {
 		}
 	};
 
-	const attachFiles = (incoming: File[]) => {
-		if (collabReadOnly) return;
-		const localFiles: ComposerFile[] = [];
-		const imageReads: ReturnType<typeof fileToImage>[] = [];
-		let unavailable = false;
-		for (const file of incoming) {
-			if (isInlineImage(file)) {
-				imageReads.push(fileToImage(file));
-				continue;
-			}
-			const path = window.omp.app.pathForFile(file);
-			if (path) localFiles.push({ name: file.name, mention: droppedFileMention(path, cwd) });
-			else unavailable = true;
-		}
-		if (localFiles.length > 0) {
-			addFiles(localFiles);
-			const mentions = [...new Set(localFiles.map(file => file.mention))];
-			setText(current =>
-				appendMentions(
-					current,
-					mentions.filter(mention => findMention(current, mention) === -1),
-				),
-			);
-		}
-		const reportFailure = () => toast({ variant: "warning", message: t("input.attachmentFailed") });
-		if (unavailable) reportFailure();
-		if (imageReads.length > 0) {
-			void Promise.allSettled(imageReads).then(results => {
-				const added = results.flatMap(result => (result.status === "fulfilled" ? [result.value] : []));
-				if (added.length > 0) setImages(previous => [...previous, ...added]);
-				if (!unavailable && added.length < results.length) reportFailure();
-			});
-		}
-	};
-
-	const [dragActive, setDragActive] = useState(false);
-	const draggingFiles = (e: DragEvent<HTMLDivElement>) => e.dataTransfer.types.includes("Files");
-	const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-		if (!draggingFiles(e) || collabReadOnly) return;
-		e.preventDefault();
-		e.dataTransfer.dropEffect = "copy";
-		if (!dragActive) setDragActive(true);
-	};
-	const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
-		if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-		setDragActive(false);
-	};
-	const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-		setDragActive(false);
-		if (e.dataTransfer.files.length === 0) return;
-		e.preventDefault();
-		if (collabReadOnly) return;
-		attachFiles(Array.from(e.dataTransfer.files));
-		requestAnimationFrame(() => textareaRef.current?.focus());
-	};
-
 	const handlePaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
 		const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
 		if (files.length > 0) {
@@ -923,15 +858,9 @@ export function InputArea() {
 						/>
 					)}
 					<div
-						className={cx(
-							"omp-composer-box overflow-hidden",
-							dragActive && "ring-2 ring-[var(--omp-accent)] ring-offset-0",
-						)}
+						className="omp-composer-box overflow-hidden"
 						data-working={isStreaming}
 						style={modeColor ? { borderColor: modeColor } : undefined}
-						onDragOver={handleDragOver}
-						onDragLeave={handleDragLeave}
-						onDrop={handleDrop}
 					>
 						<div className="px-4 pb-1 pt-3">
 							{submissionUncertain && (

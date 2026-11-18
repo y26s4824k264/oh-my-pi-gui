@@ -22,6 +22,7 @@ import { AgentPage } from "../agents/AgentPage";
 import { ChatStream } from "../chat/ChatStream";
 import { WorkspaceDock } from "../chat/dock/WorkspaceDock";
 import { InputArea } from "./InputArea";
+import { useComposerFiles } from "./use-composer-files";
 
 const DIVIDER_SIZE = 5;
 const RATIO_STEP = 0.05;
@@ -169,19 +170,7 @@ function SessionPaneBody({ tabId, label }: { tabId: string; label: string }) {
 	}, [sessionId, tabId]);
 
 	if (shownPage) return <AgentPage agentId={shownPage} key={shownPage} tabId={tabId} />;
-	const conversation = (
-		<>
-			<div className="relative flex min-h-0 flex-1 flex-col">
-				<ChatStream />
-				<div className="omp-composer-region relative shrink-0 bg-transparent pt-2">
-					<div className="omp-composer-shell relative w-full">
-						<WorkspaceDock />
-					</div>
-				</div>
-			</div>
-			<InputArea />
-		</>
-	);
+	const conversation = <SessionConversation />;
 	if (!besidePage) return conversation;
 	return (
 		<AgentBeside
@@ -195,6 +184,53 @@ function SessionPaneBody({ tabId, label }: { tabId: string; label: string }) {
 			}
 			page={<AgentPage agentId={besidePage} beside key={besidePage} tabId={tabId} />}
 		/>
+	);
+}
+
+function SessionConversation() {
+	const { attachFiles, readOnly } = useComposerFiles();
+	const [draggingFiles, setDraggingFiles] = useState(false);
+	return (
+		<div
+			className={cx(
+				"relative flex min-h-0 min-w-0 flex-1 flex-col",
+				draggingFiles &&
+					!readOnly &&
+					"after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-lg after:border-2 after:border-(--omp-accent)",
+			)}
+			onDragOver={event => {
+				if (!event.dataTransfer.types.includes("Files")) return;
+				event.preventDefault();
+				event.stopPropagation();
+				event.dataTransfer.dropEffect = readOnly ? "none" : "copy";
+				setDraggingFiles(!readOnly);
+			}}
+			onDragLeave={event => {
+				const next = event.relatedTarget;
+				if (next instanceof Node && event.currentTarget.contains(next)) return;
+				setDraggingFiles(false);
+			}}
+			onDrop={event => {
+				setDraggingFiles(false);
+				if (event.dataTransfer.files.length === 0) return;
+				event.preventDefault();
+				event.stopPropagation();
+				if (readOnly) return;
+				attachFiles(Array.from(event.dataTransfer.files));
+				const composer = event.currentTarget.querySelector<HTMLTextAreaElement>(".omp-composer-box textarea");
+				requestAnimationFrame(() => composer?.focus());
+			}}
+		>
+			<div className="relative flex min-h-0 flex-1 flex-col">
+				<ChatStream />
+				<div className="omp-composer-region relative shrink-0 bg-transparent pt-2">
+					<div className="omp-composer-shell relative w-full">
+						<WorkspaceDock />
+					</div>
+				</div>
+			</div>
+			<InputArea />
+		</div>
 	);
 }
 
