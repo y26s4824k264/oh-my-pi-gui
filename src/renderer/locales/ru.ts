@@ -437,7 +437,7 @@ export const ru: Record<string, string> = {
 	"sidebar.newSession": "Новая сессия",
 	"sidebar.search": "Поиск по сессиям",
 	"sidebar.mode.work": "Работа",
-	"sidebar.projectless": "Без проекта",
+	"sidebar.projects": "Проекты",
 	"sidebar.navigation.expand": "Показать дополнительные пункты навигации",
 	"contextStrategy.title": "Стратегия контекста — что происходит, когда контекст этой модели заполняется",
 	"contextStrategy.strategyLabel": "Стратегия",

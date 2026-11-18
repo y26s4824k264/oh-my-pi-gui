@@ -436,7 +436,7 @@ export const th: Record<string, string> = {
 	"sidebar.newSession": "เซสชันใหม่",
 	"sidebar.search": "ค้นหาเซสชัน",
 	"sidebar.mode.work": "งาน",
-	"sidebar.projectless": "ไม่มีโปรเจกต์",
+	"sidebar.projects": "โปรเจกต์",
 	"sidebar.navigation.expand": "แสดงการนำทางเพิ่มเติม",
 	"contextStrategy.title": "กลยุทธ์บริบท — สิ่งที่จะเกิดขึ้นเมื่อบริบทของโมเดลนี้เต็ม",
 	"contextStrategy.strategyLabel": "กลยุทธ์",

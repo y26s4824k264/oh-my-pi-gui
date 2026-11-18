@@ -436,7 +436,7 @@ export const zh: Record<string, string> = {
 	"sidebar.newSession": "新建会话",
 	"sidebar.search": "搜索会话",
 	"sidebar.mode.work": "工作",
-	"sidebar.projectless": "无项目",
+	"sidebar.projects": "项目",
 	"sidebar.navigation.expand": "展开更多导航",
 	"contextStrategy.title": "上下文策略 — 当前模型上下文写满时会发生什么",
 	"contextStrategy.strategyLabel": "策略",

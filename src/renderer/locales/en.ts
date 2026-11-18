@@ -451,7 +451,7 @@ export const en: Record<string, string> = {
 	"sidebar.newSession": "New session",
 	"sidebar.search": "Search sessions",
 	"sidebar.mode.work": "Work",
-	"sidebar.projectless": "No project",
+	"sidebar.projects": "Projects",
 	"sidebar.navigation.expand": "Show more navigation",
 	"contextStrategy.title": "Context strategy — what happens when this model's context fills",
 	"contextStrategy.strategyLabel": "Strategy",

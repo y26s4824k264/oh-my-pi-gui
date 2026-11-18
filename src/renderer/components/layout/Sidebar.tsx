@@ -1393,7 +1393,7 @@ export function Sidebar() {
 
 				<div className="flex h-7 shrink-0 items-center ps-4 pe-2.5">
 					<span className="min-w-0 flex-1 truncate text-omp-xs font-medium text-[var(--omp-dim)]">
-						{t("sidebar.recent")}
+						{t("sidebar.projects")}
 					</span>
 					<button
 						type="button"
@@ -1540,7 +1540,7 @@ export function Sidebar() {
 						<div className="mb-1" data-projectless-section>
 							{renderGroupHeader({
 								id: "__projectless__",
-								name: t("sidebar.projectless"),
+								name: t("sidebar.recent"),
 								count: listedCount(projectlessSessions),
 								icon: MessageCircle,
 								collapsedState: projectlessCollapsed,
