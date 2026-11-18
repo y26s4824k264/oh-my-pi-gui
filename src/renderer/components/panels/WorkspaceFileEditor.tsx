@@ -2,14 +2,13 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { json } from "@codemirror/lang-json";
 import { markdown } from "@codemirror/lang-markdown";
 import { drawSelection, EditorView, highlightActiveLineGutter, keymap, lineNumbers } from "@codemirror/view";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { create } from "zustand";
 import type { FileEditFailure } from "../../../shared/ipc-types";
 import { describeError } from "../../lib/errors";
 import { useT } from "../../lib/i18n";
 import { isImeKeyEvent } from "../../lib/ime";
 import { Button } from "../common";
-import { ConfirmDialog } from "../common/ConfirmDialog";
 
 type EditFailure = { reason: FileEditFailure; detail?: string };
 interface FileDraft {
@@ -18,6 +17,9 @@ interface FileDraft {
 	content: string;
 	saving?: boolean;
 	failure?: EditFailure;
+	cursor?: { anchor: number; head: number };
+	scroll?: { top: number; left: number };
+	lastLineRequest?: number;
 }
 
 // Window-local drafts survive a file switch, closing the drawer, or opening another panel.
@@ -53,18 +55,18 @@ export function WorkspaceFileEditor({
 	path,
 	tabId,
 	line,
-	onReturnToPreview,
+	lineRequest,
 }: {
 	draftId: string;
 	path: string;
 	tabId: string | null;
 	line: number | null;
-	onReturnToPreview: () => void;
+	lineRequest?: number;
 }) {
 	const t = useT();
 	const draft = useFileDrafts(s => s.drafts.get(draftId));
 	const host = useRef<HTMLDivElement>(null);
-	const [discard, setDiscard] = useState(false);
+	const currentView = useRef<EditorView | null>(null);
 	const dirty = !!draft && draft.content !== draft.initial;
 	const save = async () => {
 		const current = useFileDrafts.getState().drafts.get(draftId);
@@ -83,16 +85,7 @@ export function WorkspaceFileEditor({
 			setFileDraft(draftId, { ...latest, saving: false, failure: response });
 			return;
 		}
-		if (latest.content === response.content) {
-			setFileDraft(draftId, null);
-			onReturnToPreview();
-		} else {
-			setFileDraft(draftId, { ...latest, saving: false, initial: response.content, revision: response.revision });
-		}
-	};
-	const discardChanges = () => {
-		setFileDraft(draftId, null);
-		onReturnToPreview();
+		setFileDraft(draftId, { ...latest, saving: false, initial: response.content, revision: response.revision });
 	};
 	const saveRef = useRef(save);
 	saveRef.current = save;
@@ -107,6 +100,7 @@ export function WorkspaceFileEditor({
 		const language = /\.mdx?$/i.test(path) ? [markdown()] : /\.json$/i.test(path) ? [json()] : [];
 		const view = new EditorView({
 			doc: initial.content,
+			selection: initial.cursor,
 			extensions: [
 				history(),
 				drawSelection(),
@@ -133,17 +127,35 @@ export function WorkspaceFileEditor({
 			],
 			parent: element,
 		});
-		if (line && line > 0) {
-			const anchor = view.state.doc.line(Math.min(line, view.state.doc.lines)).from;
-			view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) });
+		currentView.current = view;
+		if (initial.scroll) {
+			view.scrollDOM.scrollTop = initial.scroll.top;
+			view.scrollDOM.scrollLeft = initial.scroll.left;
 		}
 		view.focus();
 		return () => {
-			view.destroy();
+			currentView.current = null;
 			const snapshot = useFileDrafts.getState().drafts.get(draftId);
-			if (snapshot && !snapshot.saving && snapshot.content === snapshot.initial) setFileDraft(draftId, null);
+			if (snapshot) {
+				const { anchor, head } = view.state.selection.main;
+				setFileDraft(draftId, {
+					...snapshot,
+					cursor: { anchor, head },
+					scroll: { top: view.scrollDOM.scrollTop, left: view.scrollDOM.scrollLeft },
+				});
+			}
+			view.destroy();
 		};
 	}, [draftId]);
+
+	useEffect(() => {
+		const view = currentView.current;
+		const snapshot = useFileDrafts.getState().drafts.get(draftId);
+		if (!view || !snapshot || !line || line < 1 || snapshot.lastLineRequest === lineRequest) return;
+		const anchor = view.state.doc.line(Math.min(line, view.state.doc.lines)).from;
+		view.dispatch({ selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: "center" }) });
+		setFileDraft(draftId, { ...snapshot, lastLineRequest: lineRequest });
+	}, [draftId, line, lineRequest]);
 
 	if (!draft) return null;
 	return (
@@ -158,30 +170,13 @@ export function WorkspaceFileEditor({
 				</p>
 			)}
 			<div className="min-h-0 flex-1 overflow-hidden" ref={host} />
-			<div className="flex shrink-0 items-center justify-end gap-2 border-t border-(--omp-border-muted) px-3 py-1.5">
-				{dirty && (
-					<span className="min-w-0 flex-1 truncate text-omp-xs text-(--omp-muted)">{t("filesPanel.unsaved")}</span>
-				)}
-				<Button
-					variant="ghost"
-					size="sm"
-					disabled={draft.saving}
-					onClick={() => (dirty ? setDiscard(true) : discardChanges())}
-				>
-					{t("common.cancel")}
-				</Button>
-				<Button variant="primary" size="sm" loading={draft.saving} disabled={!dirty} onClick={() => void save()}>
-					{t("common.save")}
-				</Button>
-			</div>
-			<ConfirmDialog
-				open={discard}
-				title={t("filesPanel.discard")}
-				message={t("filesPanel.discardHint")}
-				confirmLabel={t("filesPanel.discard")}
-				onConfirm={discardChanges}
-				onCancel={() => setDiscard(false)}
-			/>
+			{(dirty || draft.saving) && (
+				<div className="flex shrink-0 justify-end border-t border-(--omp-border-muted) px-3 py-1.5">
+					<Button variant="primary" size="sm" loading={draft.saving} onClick={() => void save()}>
+						{t("common.save")}
+					</Button>
+				</div>
+			)}
 		</div>
 	);
 }

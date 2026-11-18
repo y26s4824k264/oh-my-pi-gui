@@ -17,6 +17,7 @@ import { setFocusedSessionRuntime } from "../../stores/session-runtime-context";
 import { useUiStore } from "../../stores/ui";
 import { LinkMenuHost } from "../common/LinkMenu";
 import { FilesPanel } from "./FilesPanel";
+import { useFileTabs } from "./file-tabs";
 
 const { document, window, Event, HTMLElement, Node } = parseHTML("<html><body></body></html>");
 
@@ -63,6 +64,7 @@ afterEach(async () => {
 	setFocusedSessionRuntime(null);
 	clearPathResolutionCache();
 	useUiStore.getState().closeFilePreview();
+	useFileTabs.setState({ workspaces: new Map() });
 });
 
 describe("FilesPanel right-click", () => {

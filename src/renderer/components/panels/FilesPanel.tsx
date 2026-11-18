@@ -17,7 +17,6 @@ import {
 	Folder,
 	FolderOpen,
 	FolderX,
-	Pencil,
 	RefreshCw,
 	X,
 } from "lucide-react";
@@ -32,10 +31,13 @@ import { useSessionStore } from "../../stores/session";
 import { useRuntimeTabId } from "../../stores/session-runtime-context";
 import { useUiStore } from "../../stores/ui";
 import { Button, Spinner } from "../common";
+import { ConfirmDialog } from "../common/ConfirmDialog";
 import { ZoomableImage } from "../common/ImageViewer";
 import { showPathMenu } from "../common/LinkMenu";
 import { type TreeNode, TreeView } from "../common/TreeView";
 import { PathLink } from "../tools/PathLink";
+import { FileTabStrip } from "./FileTabStrip";
+import { EMPTY_FILE_TABS, isMarkdownFile, projectRelativeFile, useFileTabs, type WorkspaceFileTab } from "./file-tabs";
 import { useWorkspaceExplorer } from "./use-workspace-explorer";
 import { setFileDraft, useFileDrafts, WorkspaceFileEditor } from "./WorkspaceFileEditor";
 import { FileLabel, PanelEmpty, PanelSearch, PanelToolbar, ToolbarIconButton } from "./workspace-ui";
@@ -116,11 +118,19 @@ export function FilesPanel() {
 	const t = useT();
 	const tabId = useRuntimeTabId();
 	const cwd = useSessionStore(state => state.cwd);
-	const filePreviewPath = useUiStore(s => s.filePreviewPath);
+	const requestedPath = useUiStore(s => s.filePreviewPath);
+	const requestedLine = useUiStore(s => s.filePreviewLine);
+	const requestId = useUiStore(s => s.filePreviewRequestId);
 	const filePreviewImage = useUiStore(s => s.filePreviewImage);
-	const filePreviewLine = useUiStore(s => s.filePreviewLine);
 	const openFilePreview = useUiStore(s => s.openFilePreview);
 	const closeFilePreview = useUiStore(s => s.closeFilePreview);
+	const workspace = useFileTabs(state => state.workspaces.get(cwd) ?? EMPTY_FILE_TABS);
+	const activeTab = filePreviewImage ? undefined : workspace.tabs.find(tab => tab.id === workspace.activeId);
+	const filePreviewPath = activeTab?.path ?? null;
+	const filePreviewLine = activeTab?.line ?? null;
+	useLayoutEffect(() => {
+		if (requestedPath) useFileTabs.getState().open(cwd, requestedPath, requestedLine, requestId);
+	}, [cwd, requestedPath, requestedLine, requestId]);
 	const previewVersion = useRef(0);
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const { directories, query, term, setQuery, showIgnored, setShowIgnored, search, refresh } = useWorkspaceExplorer(
@@ -130,19 +140,12 @@ export function FilesPanel() {
 	);
 	const [preview, setPreview] = useState<PreviewState | null>(null);
 	const [treeShare, setTreeShare] = useState(32);
-	const [editRequest, setEditRequest] = useState<{ id: string; failure?: FileEditFailure; detail?: string } | null>(
-		null,
-	);
+	const [editError, setEditError] = useState<{ id: string; failure: FileEditFailure; detail?: string } | null>(null);
+	const [closingTab, setClosingTab] = useState<WorkspaceFileTab | null>(null);
 	const panelRef = useRef<HTMLDivElement>(null);
 	const resizing = useRef(false);
 
-	const treePath = useMemo(() => {
-		if (!filePreviewPath) return null;
-		const path = filePreviewPath.replace(/\\/g, "/");
-		const root = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
-		if (root && path.startsWith(`${root}/`)) return path.slice(root.length + 1);
-		return /^([A-Za-z]:)?\//.test(path) ? null : path.replace(/^\.\//, "");
-	}, [cwd, filePreviewPath]);
+	const treePath = filePreviewPath ? projectRelativeFile(cwd, filePreviewPath) : null;
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: expansion belongs to the active workspace.
 	useEffect(() => setExpanded(new Set()), [cwd, tabId]);
@@ -153,31 +156,26 @@ export function FilesPanel() {
 		setExpanded(current => new Set([...current, ...ancestors]));
 	}, [treePath, cwd, tabId]);
 
-	const draftId = filePreviewPath ? JSON.stringify([cwd, treePath ?? filePreviewPath]) : "";
-	const editing = useFileDrafts(state => state.drafts.has(draftId));
-	const editStatus = editRequest?.id === draftId ? editRequest : null;
-	async function beginEdit(path: string) {
-		const id = draftId;
-		setEditRequest({ id });
-		const result = await window.omp.fs.openEdit({ path, tabId: tabId ?? undefined }).catch(
-			(
-				error,
-			): {
-				ok: false;
-				reason: "io";
-				detail: string;
-			} => ({ ok: false, reason: "io", detail: describeError(error) }),
-		);
-		if (result.ok) {
-			if (!useFileDrafts.getState().drafts.has(id)) {
-				setFileDraft(id, { initial: result.content, content: result.content, revision: result.revision });
-			}
-			setEditRequest(current => (current?.id === id ? null : current));
-		} else {
-			setEditRequest(current =>
-				current?.id === id ? { id, failure: result.reason, detail: result.detail } : current,
-			);
-		}
+	const draftId = activeTab?.id ?? "";
+	const hasDraft = useFileDrafts(state => state.drafts.has(draftId));
+	const editStatus = editError?.id === draftId ? editError : null;
+
+	function removeTab(tab: WorkspaceFileTab) {
+		if (useFileDrafts.getState().drafts.get(tab.id)?.saving) return;
+		useFileTabs.getState().remove(cwd, tab.id);
+		setFileDraft(tab.id, null);
+		setClosingTab(null);
+		if (tab.id !== activeTab?.id) return;
+		const remaining = useFileTabs.getState().workspaces.get(cwd);
+		const next = remaining?.tabs.find(item => item.id === remaining.activeId);
+		if (next) openFilePreview(next.path);
+		else closeFilePreview();
+	}
+
+	function requestTabClose(tab: WorkspaceFileTab) {
+		const draft = useFileDrafts.getState().drafts.get(tab.id);
+		if (draft && draft.content !== draft.initial) setClosingTab(tab);
+		else removeTab(tab);
 	}
 
 	const openPreview = useCallback(
@@ -312,11 +310,42 @@ export function FilesPanel() {
 	}, [directory, directories, term, expanded, onNodeClick, tabId, t]);
 
 	const activePreview = preview?.path === filePreviewPath ? preview : null;
-	// Markdown renders, except when a link named a line: rendered prose has no
-	// line numbers, so the source shows with that line marked (as GitHub does).
-	const previewIsMarkdown = filePreviewPath ? /\.mdx?$/i.test(filePreviewPath) && filePreviewLine === null : false;
+	const markdownFile = !!filePreviewPath && isMarkdownFile(filePreviewPath);
+	const previewIsMarkdown = markdownFile && activeTab?.view === "preview";
+	const markdownDraft = useFileDrafts(state => (previewIsMarkdown ? state.drafts.get(draftId)?.content : undefined));
 	// An SVG draws on the same terms: a link that named a line wants its source.
 	const previewImage = filePreviewLine === null || !activePreview?.content ? (activePreview?.image ?? null) : null;
+	const editing = hasDraft && !previewIsMarkdown && !previewImage;
+	const wantsEditor =
+		!previewIsMarkdown &&
+		!previewImage &&
+		typeof activePreview?.content === "string" &&
+		typeof window.omp?.fs?.openEdit === "function";
+	useEffect(() => {
+		if (!filePreviewPath || !wantsEditor || hasDraft) return;
+		let cancelled = false;
+		setEditError(null);
+		void window.omp.fs
+			.openEdit({ path: filePreviewPath, tabId: tabId ?? undefined })
+			.then(result => {
+				if (cancelled) return;
+				if (result.ok) {
+					if (!useFileDrafts.getState().drafts.has(draftId)) {
+						setFileDraft(draftId, {
+							initial: result.content,
+							content: result.content,
+							revision: result.revision,
+						});
+					}
+				} else setEditError({ id: draftId, failure: result.reason, detail: result.detail });
+			})
+			.catch(error => {
+				if (!cancelled) setEditError({ id: draftId, failure: "io", detail: describeError(error) });
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [draftId, filePreviewPath, tabId, wantsEditor, hasDraft]);
 	const previewLines = useMemo(() => {
 		const content = activePreview?.content;
 		if (!content || previewIsMarkdown) return 0;
@@ -351,160 +380,165 @@ export function FilesPanel() {
 	}, [markedLine, activePreview?.content]);
 
 	const hasPreview = Boolean(filePreviewPath || filePreviewImage);
-	const previewPane = filePreviewPath ? (
-		<section className="flex min-h-0 min-w-0 flex-col">
-			<PanelToolbar className="gap-1 border-b border-(--omp-border-muted) pl-1.5">
-				<ToolbarIconButton label={t("filesPanel.back")} onClick={closeFilePreview}>
-					<X size={14} />
-				</ToolbarIconButton>
-				<span className="min-w-0 flex-1 px-1 text-omp-sm font-medium">
-					<FileLabel path={filePreviewPath} />
-				</span>
-				{!editing && typeof activePreview?.content === "string" && (
-					<ToolbarIconButton
-						label={t("filesPanel.edit")}
-						disabled={Boolean(editStatus && !editStatus.failure)}
-						onClick={() => void beginEdit(filePreviewPath)}
-					>
-						<Pencil size={14} />
-					</ToolbarIconButton>
-				)}
-				<ToolbarIconButton
-					label={t(copied ? "filesPanel.copied" : "filesPanel.copyPath")}
-					onClick={() =>
-						void copyText(filePreviewPath).then(ok => {
-							if (!ok) return;
-							setCopied(true);
-							window.setTimeout(() => setCopied(false), 1400);
-						})
-					}
-				>
-					{copied ? <Check size={14} className="text-(--omp-success)" /> : <Copy size={14} />}
-				</ToolbarIconButton>
-				<ToolbarIconButton
-					label={t("filesPanel.insertMention")}
-					onClick={() => {
-						insertMention(filePreviewPath);
-					}}
-				>
-					<AtSign size={14} />
-				</ToolbarIconButton>
-				<PathLink
-					path={filePreviewPath}
-					external
-					label={t("filesPanel.openExternal")}
-					className="omp-pressable flex size-7 shrink-0 items-center justify-center rounded-md text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text) hover:no-underline"
-				>
-					<ExternalLinkIcon size={14} />
-				</PathLink>
-			</PanelToolbar>
-			{editStatus?.failure && (
-				<p className="shrink-0 px-3 py-2 text-omp-sm text-(--omp-error)" role="alert" title={editStatus.detail}>
-					{t(`filesPanel.editError.${editStatus.failure}`)}
-				</p>
-			)}
-			{editing ? (
-				<WorkspaceFileEditor
-					key={draftId}
-					draftId={draftId}
-					path={filePreviewPath}
-					tabId={tabId}
-					line={filePreviewLine}
-					onReturnToPreview={() => {
-						if (useUiStore.getState().filePreviewPath === filePreviewPath) void openPreview(filePreviewPath);
-					}}
-				/>
-			) : (
-				<div
-					ref={previewScrollRef}
-					tabIndex={-1}
-					data-file-preview=""
-					onKeyDown={event => {
-						if (!isSelectAll(event) || !previewContentRef.current) return;
-						event.preventDefault();
-						selectContents(previewContentRef.current);
-					}}
-					className="min-h-0 flex-1 overflow-auto bg-(--omp-code-bg) outline-none"
-				>
-					{!activePreview || activePreview.loading ? (
-						<div className="flex items-center gap-2 p-4">
-							<Spinner size="sm" />
-							<span className="text-omp-sm text-(--omp-dim)">{t("filesPanel.reading")}</span>
-						</div>
-					) : activePreview.notice ? (
-						<PanelEmpty icon={FileX} title={activePreview.notice.title} hint={activePreview.notice.hint} />
-					) : previewImage ? (
-						<ImagePreview
-							image={previewImage}
-							name={basename(filePreviewPath)}
-							contentRef={setPreviewContent}
-							onFailed={onImageFailed}
-						/>
-					) : previewIsMarkdown ? (
-						<div ref={setPreviewContent} className="mx-auto max-w-3xl px-5 py-4 text-omp-md text-(--omp-text)">
-							<MarkdownRenderer content={activePreview.content ?? ""} sourcePath={filePreviewPath} />
-							{activePreview.truncated && (
-								<div className="mt-3 text-omp-xs text-(--omp-dim)">
-									{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
-								</div>
-							)}
-						</div>
-					) : (
-						<div className="relative flex min-w-max py-2 font-mono text-omp-xs leading-[1.6]">
-							{lineBand && (
-								<div
-									aria-hidden="true"
-									data-marked-line={markedLine ?? undefined}
-									className="pointer-events-none absolute inset-x-0 bg-[var(--omp-accent)]/12"
-									style={{ top: lineBand.top, height: lineBand.height }}
-								/>
-							)}
-							<div
-								ref={gutterRef}
-								aria-hidden="true"
-								className="sticky left-0 shrink-0 select-none bg-(--omp-code-bg) pr-3 pl-3 text-right text-(--omp-dim) opacity-70"
-							>
-								{Array.from({ length: previewLines }, (_, index) => (
-									<div
-										key={index}
-										data-marked={index + 1 === markedLine || undefined}
-										className={index + 1 === markedLine ? "font-semibold text-(--omp-accent)" : undefined}
-									>
-										{index + 1}
-									</div>
-								))}
-							</div>
-							<pre ref={setPreviewContent} className="m-0 pr-4 whitespace-pre text-(--omp-text) [tab-size:4]">
-								{activePreview.content}
-								{activePreview.truncated && (
-									<span className="text-(--omp-dim)">
-										{"\n"}
-										{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
-									</span>
-								)}
-							</pre>
+	const previewBody =
+		filePreviewPath && activeTab ? (
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+				<PanelToolbar className="gap-1 border-b border-(--omp-border-muted) pl-1.5">
+					<span className="min-w-0 flex-1 px-1 text-omp-sm font-medium">
+						<FileLabel path={filePreviewPath} />
+					</span>
+					{markdownFile && (
+						<div className="omp-segmented no-drag flex shrink-0">
+							{(["source", "preview"] as const).map(view => (
+								<button
+									aria-pressed={activeTab.view === view}
+									className="rounded px-2 py-1 text-omp-xs aria-pressed:bg-(--omp-selected-bg)"
+									key={view}
+									onClick={() => useFileTabs.getState().changeView(cwd, activeTab.id, view)}
+									type="button"
+								>
+									{t(`filesPanel.${view}`)}
+								</button>
+							))}
 						</div>
 					)}
-				</div>
-			)}
-		</section>
-	) : filePreviewImage ? (
-		<section className="flex min-h-0 min-w-0 flex-col">
-			<PanelToolbar className="gap-1 border-b border-(--omp-border-muted)">
-				<ToolbarIconButton label={t("filesPanel.back")} onClick={closeFilePreview}>
-					<X size={14} />
-				</ToolbarIconButton>
-				<span className="min-w-0 flex-1 truncate text-omp-sm font-medium">{filePreviewImage.label}</span>
-			</PanelToolbar>
-			<div className="min-h-0 flex-1 overflow-auto" data-file-preview="">
-				<ZoomableImage
-					src={filePreviewImage.src}
-					alt={filePreviewImage.label}
-					className="omp-image-checker mx-auto block h-auto max-w-full object-contain p-3"
-				/>
+					<ToolbarIconButton
+						label={t(copied ? "filesPanel.copied" : "filesPanel.copyPath")}
+						onClick={() =>
+							void copyText(filePreviewPath).then(ok => {
+								if (!ok) return;
+								setCopied(true);
+								window.setTimeout(() => setCopied(false), 1400);
+							})
+						}
+					>
+						{copied ? <Check size={14} className="text-(--omp-success)" /> : <Copy size={14} />}
+					</ToolbarIconButton>
+					<ToolbarIconButton
+						label={t("filesPanel.insertMention")}
+						onClick={() => {
+							insertMention(filePreviewPath);
+						}}
+					>
+						<AtSign size={14} />
+					</ToolbarIconButton>
+					<PathLink
+						path={filePreviewPath}
+						external
+						label={t("filesPanel.openExternal")}
+						className="omp-pressable flex size-7 shrink-0 items-center justify-center rounded-md text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text) hover:no-underline"
+					>
+						<ExternalLinkIcon size={14} />
+					</PathLink>
+				</PanelToolbar>
+				{!previewIsMarkdown && editStatus && (
+					<p className="shrink-0 px-3 py-2 text-omp-sm text-(--omp-error)" role="alert" title={editStatus.detail}>
+						{t(`filesPanel.editError.${editStatus.failure}`)}
+					</p>
+				)}
+				{editing ? (
+					<WorkspaceFileEditor
+						key={draftId}
+						draftId={draftId}
+						path={filePreviewPath}
+						tabId={tabId}
+						line={filePreviewLine}
+						lineRequest={activeTab.lineRequest}
+					/>
+				) : (
+					<div
+						ref={previewScrollRef}
+						tabIndex={-1}
+						data-file-preview=""
+						onKeyDown={event => {
+							if (!isSelectAll(event) || !previewContentRef.current) return;
+							event.preventDefault();
+							selectContents(previewContentRef.current);
+						}}
+						className="min-h-0 flex-1 overflow-auto bg-(--omp-code-bg) outline-none"
+					>
+						{!activePreview || activePreview.loading || (wantsEditor && !editStatus) ? (
+							<div className="flex items-center gap-2 p-4">
+								<Spinner size="sm" />
+								<span className="text-omp-sm text-(--omp-dim)">{t("filesPanel.reading")}</span>
+							</div>
+						) : activePreview.notice ? (
+							<PanelEmpty icon={FileX} title={activePreview.notice.title} hint={activePreview.notice.hint} />
+						) : previewImage ? (
+							<ImagePreview
+								image={previewImage}
+								name={basename(filePreviewPath)}
+								contentRef={setPreviewContent}
+								onFailed={onImageFailed}
+							/>
+						) : previewIsMarkdown ? (
+							<div ref={setPreviewContent} className="mx-auto max-w-3xl px-5 py-4 text-omp-md text-(--omp-text)">
+								<MarkdownRenderer
+									content={markdownDraft ?? activePreview.content ?? ""}
+									sourcePath={filePreviewPath}
+								/>
+								{markdownDraft === undefined && activePreview.truncated && (
+									<div className="mt-3 text-omp-xs text-(--omp-dim)">
+										{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
+									</div>
+								)}
+							</div>
+						) : (
+							<div className="relative flex min-w-max py-2 font-mono text-omp-xs leading-[1.6]">
+								{lineBand && (
+									<div
+										aria-hidden="true"
+										data-marked-line={markedLine ?? undefined}
+										className="pointer-events-none absolute inset-x-0 bg-[var(--omp-accent)]/12"
+										style={{ top: lineBand.top, height: lineBand.height }}
+									/>
+								)}
+								<div
+									ref={gutterRef}
+									aria-hidden="true"
+									className="sticky left-0 shrink-0 select-none bg-(--omp-code-bg) pr-3 pl-3 text-right text-(--omp-dim) opacity-70"
+								>
+									{Array.from({ length: previewLines }, (_, index) => (
+										<div
+											key={index}
+											data-marked={index + 1 === markedLine || undefined}
+											className={index + 1 === markedLine ? "font-semibold text-(--omp-accent)" : undefined}
+										>
+											{index + 1}
+										</div>
+									))}
+								</div>
+								<pre ref={setPreviewContent} className="m-0 pr-4 whitespace-pre text-(--omp-text) [tab-size:4]">
+									{activePreview.content}
+									{activePreview.truncated && (
+										<span className="text-(--omp-dim)">
+											{"\n"}
+											{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
+										</span>
+									)}
+								</pre>
+							</div>
+						)}
+					</div>
+				)}
 			</div>
-		</section>
-	) : null;
+		) : filePreviewImage ? (
+			<div className="flex min-h-0 min-w-0 flex-1 flex-col">
+				<PanelToolbar className="gap-1 border-b border-(--omp-border-muted)">
+					<ToolbarIconButton label={t("filesPanel.back")} onClick={closeFilePreview}>
+						<X size={14} />
+					</ToolbarIconButton>
+					<span className="min-w-0 flex-1 truncate text-omp-sm font-medium">{filePreviewImage.label}</span>
+				</PanelToolbar>
+				<div className="min-h-0 flex-1 overflow-auto" data-file-preview="">
+					<ZoomableImage
+						src={filePreviewImage.src}
+						alt={filePreviewImage.label}
+						className="omp-image-checker mx-auto block h-auto max-w-full object-contain p-3"
+					/>
+				</div>
+			</div>
+		) : null;
 
 	const resizeTree = (share: number) => setTreeShare(Math.round(Math.min(74, Math.max(17, share))));
 
@@ -518,7 +552,25 @@ export function FilesPanel() {
 					: "minmax(0, 1fr)",
 			}}
 		>
-			{previewPane}
+			{hasPreview && (
+				<section className="flex min-h-0 min-w-0 flex-col">
+					<FileTabStrip
+						tabs={workspace.tabs}
+						activeId={activeTab?.id}
+						onActivate={tab => openFilePreview(tab.path)}
+						onClose={requestTabClose}
+					/>
+					{previewBody}
+					<ConfirmDialog
+						open={closingTab !== null}
+						title={t("filesPanel.discard")}
+						message={t("filesPanel.discardHint")}
+						confirmLabel={t("filesPanel.discard")}
+						onConfirm={() => closingTab && removeTab(closingTab)}
+						onCancel={() => setClosingTab(null)}
+					/>
+				</section>
+			)}
 			{hasPreview && (
 				<div
 					aria-label={t("filesPanel.resize")}

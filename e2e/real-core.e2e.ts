@@ -6,6 +6,7 @@ import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, test } from "@playwright/test";
 import { _electron as electron } from "playwright";
+import { DEFAULT_CATALOGS } from "../src/renderer/components/panels/plugins/catalog-model";
 import { IPC_EVENTS } from "../src/shared/ipc-types";
 import type { RpcSessionState } from "../src/shared/rpc-types";
 
@@ -16,11 +17,22 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 	const desktop = path.join(profile, "desktop");
 	const agent = path.join(profile, "agent");
 	const addedProject = path.join(profile, "drawing-folder");
+	const marketplace = path.join(profile, "openai-marketplace-fixture");
 	await Promise.all([fs.mkdir(project), fs.mkdir(desktop), fs.mkdir(agent), fs.mkdir(addedProject)]);
+	await fs.mkdir(path.join(marketplace, ".omp-plugin"), { recursive: true });
+	await fs.writeFile(
+		path.join(marketplace, ".omp-plugin", "marketplace.json"),
+		JSON.stringify({
+			name: "openai-curated",
+			owner: { name: "OpenAI" },
+			plugins: [{ name: "workspace-demo", source: "./plugins/demo", description: "An isolated fixture." }],
+		}),
+	);
 	await fs.writeFile(
 		path.join(desktop, "prefs.json"),
 		JSON.stringify({
 			language: "en",
+			pluginCatalogsOffered: DEFAULT_CATALOGS.map(entry => entry.source),
 			launchProfiles: {
 				[project]: { noExtensions: true, noSkills: true, noRules: true },
 			},
@@ -147,30 +159,52 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await expect(preview).toContainText("marked line");
 		const notes = tree.getByText("notes.txt", { exact: true });
 		await expect(notes).toBeVisible();
-		const edit = page.getByRole("button", { name: "Edit file", exact: true });
-		await edit.click();
+		const fileTabs = page.getByRole("tablist", { name: "Open files", exact: true });
+		const notesTab = fileTabs.getByRole("tab", { name: "notes.txt", exact: true });
+		const readmeTab = fileTabs.getByRole("tab", { name: "README.md", exact: true });
+		await expect(fileTabs.getByRole("tab")).toHaveCount(2);
+		await expect(notesTab).toHaveAttribute("aria-selected", "true");
+		await expect(page.getByRole("button", { name: "Edit file", exact: true })).toHaveCount(0);
 		const editor = preview.getByRole("textbox", { name: "File content", exact: true });
 		await editor.fill("saved by OMP\n");
+		const notesDirty = notesTab.locator("..").locator("[data-file-dirty]");
+		await expect(notesDirty).toHaveCount(1);
 		await editor.press("ControlOrMeta+s");
-		await expect(editor).toHaveCount(0);
-		await expect(preview).toContainText("saved by OMP");
+		await expect(notesDirty).toHaveCount(0);
+		await expect(editor).toBeFocused();
+		await expect(editor).toContainText("saved by OMP");
 		const notesPath = path.join(project, "docs", "notes.txt");
 		expect(await fs.readFile(notesPath, "utf8")).toBe("saved by OMP\n");
 
-		await edit.click();
 		await editor.fill("my unsaved draft");
-		await readme.click();
-		await notes.click();
+		await readmeTab.click();
+		await expect(notesDirty).toHaveCount(1);
+		await preview.locator("h1").filter({ hasText: "Local ARM audit" }).waitFor();
+		const sourceMode = page.getByRole("button", { name: "Source", exact: true });
+		const markdownMode = page.getByRole("button", { name: "Preview", exact: true });
+		await sourceMode.click();
+		const readmePath = path.join(project, "docs", "README.md");
+		const originalMarkdown = await fs.readFile(readmePath, "utf8");
+		await editor.fill(`${originalMarkdown}\n## Live draft heading\n`);
+		await markdownMode.click();
+		await expect(preview.getByRole("heading", { name: "Live draft heading" })).toBeVisible();
+		await sourceMode.click();
+		await expect(editor).toContainText("Live draft heading");
+		await editor.fill(originalMarkdown);
+		await markdownMode.click();
+		await notesTab.click();
 		await expect(editor).toContainText("my unsaved draft");
 		await fs.writeFile(notesPath, "changed outside OMP\n");
 		await preview.getByRole("button", { name: "Save", exact: true }).click();
 		await expect(preview.getByRole("alert")).toContainText("This file changed on disk");
 		expect(await fs.readFile(notesPath, "utf8")).toBe("changed outside OMP\n");
-		await preview.getByRole("button", { name: "Cancel", exact: true }).click();
+		await fileTabs.getByRole("button", { name: "Close notes.txt", exact: true }).click();
 		await page
 			.getByRole("dialog", { name: "Discard changes", exact: true })
 			.getByRole("button", { name: "Discard changes", exact: true })
 			.click();
+		await expect(notesTab).toHaveCount(0);
+		await notes.click();
 		await expect(preview).toContainText("changed outside OMP");
 
 		const fileSearch = page.getByRole("textbox", { name: "Search project files", exact: true });
@@ -288,17 +322,37 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		expect(profiles).toMatchObject({ [addedProject]: { appendSystemPrompt: "Use millimetres in drawings." } });
 		expect((await fs.stat(addedProject)).isDirectory()).toBe(true);
 
+		await composer.fill("unsent conversation draft");
+		const addedMarketplace = await page.evaluate(
+			source => window.omp.rpc.marketplaceAction({ action: "add", source }),
+			marketplace,
+		);
+		expect(addedMarketplace).toMatchObject({ success: true, data: { ok: true } });
 		await page.getByRole("button", { name: /^Scheduled tasks/i }).click();
-		const tasksPane = page.locator(".omp-inspector").getByRole("region", { name: "Scheduled Tasks", exact: true });
+		const workspacePage = page.locator("[data-workspace-page]");
+		const tasksPane = workspacePage.getByRole("region", { name: "Scheduled Tasks", exact: true });
 		await expect(tasksPane).toBeVisible();
-		await expect(composer).toBeVisible();
+		await expect(composer).toBeHidden();
+		await expect(page.locator(".omp-inspector")).toHaveCount(0);
 		await expect(page.getByRole("dialog")).toHaveCount(0);
 		await page.getByRole("button", { name: "Plugins", exact: true }).click();
-		const pluginsPane = page.locator(".omp-inspector").getByRole("region", { name: "Plugins", exact: true });
+		const pluginsPane = workspacePage.getByRole("region", { name: "Plugins", exact: true });
 		await expect(pluginsPane).toBeVisible();
+		const catalog = pluginsPane.getByRole("combobox", { name: "Catalog", exact: true });
+		await expect(catalog.getByRole("option", { name: "OpenAI Official (1)", exact: true })).toBeAttached();
+		await catalog.selectOption("openai-curated");
+		await expect(pluginsPane.getByText("Workspace Demo", { exact: true })).toBeVisible();
 		await expect(tasksPane).toHaveCount(0);
 		await expect(page.getByRole("dialog")).toHaveCount(0);
-		await pluginsPane.getByRole("button", { name: "Close panel", exact: true }).click();
+		const sidebarBounds = await page.locator(".omp-session-sidebar").boundingBox();
+		const pluginBounds = await pluginsPane.boundingBox();
+		expect(sidebarBounds).not.toBeNull();
+		expect(pluginBounds?.x).toBeCloseTo((sidebarBounds?.x ?? 0) + (sidebarBounds?.width ?? 0));
+		expect((pluginBounds?.x ?? 0) + (pluginBounds?.width ?? 0)).toBeCloseTo(viewportWidth);
+		await pluginsPane.getByRole("button", { name: "Back to chat", exact: true }).click();
+		await expect(composer).toBeVisible();
+		await expect(composer).toHaveValue("unsent conversation draft");
+		await composer.fill("");
 
 		await fs.writeFile("test-results/runtime-selection.json", JSON.stringify(runtime, null, 2));
 		const evidence = await page.evaluate(
@@ -387,7 +441,7 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		// App-wide tools live in the sidebar's "More" menu.
 		await page.getByRole("button", { name: "Show more navigation", exact: true }).click();
 		await page.getByRole("menuitem", { name: /^Session stats/ }).click();
-		const stats = page.locator(".omp-inspector").getByRole("region");
+		const stats = page.locator("[data-workspace-page]").getByRole("region");
 		await expect(stats).toBeVisible();
 		for (const label of [
 			"Overview",

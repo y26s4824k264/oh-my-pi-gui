@@ -85,7 +85,7 @@ import { useSidebarPrefs } from "../../stores/sidebar-prefs";
 import { usePendingSkillReviews } from "../../stores/skill-review";
 import { type SplitAxis, useTabsStore } from "../../stores/tabs";
 import { toast } from "../../stores/toast";
-import { useEffectiveKeymapOverrides, useUiStore } from "../../stores/ui";
+import { activeWorkspacePage, useEffectiveKeymapOverrides, useUiStore, type WorkspacePageId } from "../../stores/ui";
 import {
 	SessionAgentsScope,
 	type SidebarAgentsInfo,
@@ -195,6 +195,7 @@ export function Sidebar() {
 	const tabRpc = useTabRpc();
 	const t = useT();
 	const keymapOverrides = useEffectiveKeymapOverrides();
+	const workspacePage = useUiStore(activeWorkspacePage);
 	// The chords bound to each action, as the user configured them (none when turned off).
 	const actionChords = useMemo(() => {
 		const chords = new Map<string, string[]>();
@@ -624,6 +625,7 @@ export function Sidebar() {
 	};
 
 	const openSession = (session: SessionInfo) => {
+		useUiStore.getState().returnToConversation();
 		// A session open in a tab may be showing one of its agent pages: its row
 		// is the way back to the conversation.
 		const tab = tabForSession(session);
@@ -635,6 +637,7 @@ export function Sidebar() {
 		void openSessionFromSidebar(session);
 	};
 	const startNew = () => {
+		useUiStore.getState().returnToConversation();
 		if (mode === "work") {
 			void openTab({ kind: "agent", work: true });
 			return;
@@ -1226,6 +1229,7 @@ export function Sidebar() {
 
 	interface NavigationItem {
 		id: string;
+		page?: WorkspacePageId;
 		icon: LucideIcon;
 		label: string;
 		title?: string;
@@ -1257,6 +1261,7 @@ export function Sidebar() {
 		},
 		{
 			id: "agents",
+			page: "agentHubOpen",
 			icon: Bot,
 			label: t("titlebar.agentHub"),
 			shortcut: actionChords.get("agents.hub")?.[0],
@@ -1264,6 +1269,7 @@ export function Sidebar() {
 		},
 		{
 			id: "memory",
+			page: "memoryOpen",
 			icon: Brain,
 			label: t("titlebar.memory"),
 			title:
@@ -1279,12 +1285,14 @@ export function Sidebar() {
 		},
 		{
 			id: "plugins",
+			page: "pluginsOpen",
 			icon: Puzzle,
 			label: t("titlebar.plugins"),
 			onClick: () => useUiStore.getState().openPlugins(),
 		},
 		{
 			id: "pull-requests",
+			page: "prCenterOpen",
 			icon: GitPullRequest,
 			label: t("titlebar.prCenter"),
 			shortcut: actionChords.get("pr.center")?.[0],
@@ -1292,6 +1300,7 @@ export function Sidebar() {
 		},
 		{
 			id: "scheduled-tasks",
+			page: "tasks",
 			icon: CalendarClock,
 			label: t("tasks.title"),
 			title: pendingTaskReviews > 0 ? t("tasks.sidebar.review", { count: pendingTaskReviews }) : undefined,
@@ -1340,14 +1349,16 @@ export function Sidebar() {
 		"omp-pressable group/nav flex h-8 w-full min-w-0 items-center gap-2.5 rounded-lg px-2 text-left text-omp-md text-[var(--omp-text-secondary)] hover:bg-[var(--omp-sidebar-item-hover)] hover:text-[var(--omp-text)]";
 	const renderNavigationItem = (item: NavigationItem) => {
 		const Icon = item.icon;
+		const selected = item.page !== undefined && item.page === workspacePage;
 		return (
 			<button
+				aria-current={selected ? "page" : undefined}
 				key={item.id}
 				type="button"
 				onClick={item.onClick}
 				data-command-center-entry={item.id === "commands" ? true : undefined}
 				title={item.title}
-				className={navigationRow}
+				className={cx(navigationRow, selected && "bg-(--omp-sidebar-item-hover) font-medium")}
 			>
 				<Icon aria-hidden="true" className="shrink-0 text-[var(--omp-muted)]" size={16} strokeWidth={1.75} />
 				<span className="min-w-0 flex-1 truncate">{item.label}</span>

@@ -92,11 +92,13 @@ interface UiStore {
 	workspacePage: WorkspacePageId | null;
 	openTasksPage: () => void;
 	closeTasksPage: () => void;
+	returnToConversation: () => void;
 	diffScope: DiffScope;
 	/** Application log viewer (moved out of the drawer: logs are diagnostics, not workspace). */
 	logsOpen: boolean;
 	/** Local file currently shown in the Files drawer. */
 	filePreviewPath: string | null;
+	filePreviewRequestId: number;
 	filePreviewImage: { src: string; label: string } | null;
 	/** 1-based line the preview scrolls to and marks, when a link named one. */
 	filePreviewLine: number | null;
@@ -366,9 +368,11 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	closeTasksPage: () => {
 		if (get().workspacePage === "tasks") set({ workspacePage: null });
 	},
+	returnToConversation: () => set(workspacePagePatch(null)),
 	diffScope: "repository",
 	logsOpen: false,
 	filePreviewPath: null,
+	filePreviewRequestId: 0,
 	filePreviewImage: null,
 	filePreviewLine: null,
 	commandPaletteOpen: false,
@@ -425,6 +429,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 		set({
 			...workspacePagePatch(null),
 			filePreviewPath: path,
+			filePreviewRequestId: get().filePreviewRequestId + 1,
 			filePreviewLine: line ?? null,
 			filePreviewImage: null,
 			panelTab: "files",
@@ -611,6 +616,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	closeModelRestore: () => set({ modelRestorePrompt: null }),
 	closeSessionOverlays: () =>
 		set({
+			workspacePage: null,
 			commandPaletteOpen: false,
 			modelPickerOpen: false,
 			settingsOpen: false,

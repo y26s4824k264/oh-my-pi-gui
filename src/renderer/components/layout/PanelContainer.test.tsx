@@ -14,6 +14,7 @@ import { MarkdownRenderer } from "../../lib/markdown";
 import { useSessionStore } from "../../stores/session";
 import { useTabsStore } from "../../stores/tabs";
 import { useUiStore } from "../../stores/ui";
+import { useFileTabs } from "../panels/file-tabs";
 import { PanelContainer } from "./PanelContainer";
 
 // xterm's bundle (the Terminal view) reads `self` when it loads, before any test code runs.
@@ -69,6 +70,7 @@ afterEach(async () => {
 	container?.remove();
 	useSessionStore.getState().reset();
 	useTabsStore.getState().reset();
+	useFileTabs.setState({ workspaces: new Map() });
 	useUiStore.setState({ panelTab: "files", panelVisible: true, filePreviewPath: null, filePreviewLine: null });
 	if (initialOmp === undefined) delete ompWindow.omp;
 	else ompWindow.omp = initialOmp;

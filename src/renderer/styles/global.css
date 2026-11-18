@@ -261,7 +261,19 @@ kbd,
 	width: min(42%, 20rem);
 }
 
-@container omp-inspector (max-width: 570px) {
+.omp-workspace-page {
+	container: omp-workspace-page / inline-size;
+}
+
+.omp-workspace-page-header {
+	padding-right: max(1rem, var(--omp-caption-right));
+}
+
+[data-sidebar="closed"] .omp-workspace-page-header {
+	padding-left: calc(var(--omp-caption-left) + 0.75rem);
+}
+
+@container omp-workspace-page (max-width: 570px) {
 	.omp-docked-master-detail {
 		flex-direction: column;
 	}

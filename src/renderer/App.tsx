@@ -2,8 +2,9 @@ import { lazy, Suspense, useEffect, useMemo } from "react";
 import type { MenuAction, MenuActionPayload, RunProgressState } from "../shared/ipc-types";
 import { nextLanguage } from "../shared/languages";
 import { AgentHoverCardLayer } from "./components/agents/AgentHoverCard";
-import { ToastStack } from "./components/common";
+import { PanelErrorBoundary, Spinner, ToastStack } from "./components/common";
 import { LinkMenuHost } from "./components/common/LinkMenu";
+import { WorkspacePageContext } from "./components/common/Modal";
 import { ActiveToolsDialog } from "./components/dialogs/ActiveToolsDialog";
 import { BranchPickerDialog } from "./components/dialogs/BranchPickerDialog";
 import { BtwDialog } from "./components/dialogs/BtwDialog";
@@ -869,30 +870,43 @@ export function App() {
 	const surface = (
 		<div
 			className="flex h-screen w-screen overflow-hidden text-[var(--omp-text)]"
-			data-inspector={panelVisible || workspace ? "open" : "closed"}
+			data-inspector={panelVisible && !workspace ? "open" : "closed"}
 			data-sidebar={sidebarVisible ? "open" : "closed"}
 		>
 			{focusedRuntime && <FocusedSessionEffects />}
 			{sidebarVisible && <Sidebar />}
 
 			<main className="omp-workspace-main relative flex min-w-0 flex-1 flex-col">
-				<TitleBar />
-				<TabBar />
-				<div className="shrink-0" data-toast-clearance>
-					<SidecarBanner />
-					<ConfigWarningsBanner />
-					<UpdateBanner />
+				<div className={workspace ? "hidden" : "flex min-h-0 flex-1 flex-col"}>
+					<TitleBar />
+					<TabBar />
+					<div className="shrink-0" data-toast-clearance>
+						<SidecarBanner />
+						<ConfigWarningsBanner />
+						<UpdateBanner />
+					</div>
+					<SplitWorkspace />
 				</div>
-				<SplitWorkspace />
+				{workspace && (
+					<div className="omp-workspace-page min-h-0 min-w-0 flex-1" data-workspace-page="">
+						<WorkspacePageContext.Provider value>
+							<PanelErrorBoundary key={workspacePage}>
+								<Suspense
+									fallback={
+										<div className="flex h-full items-center justify-center">
+											<Spinner size="sm" />
+										</div>
+									}
+								>
+									{workspace}
+								</Suspense>
+							</PanelErrorBoundary>
+						</WorkspacePageContext.Provider>
+					</div>
+				)}
 			</main>
 
-			{(panelVisible || workspace) && (
-				<PanelContainer
-					key={workspace ? "workspace" : "review"}
-					workspace={workspace}
-					workspaceKey={workspacePage ?? undefined}
-				/>
-			)}
+			{panelVisible && !workspace && <PanelContainer />}
 
 			<CommandPalette />
 			<ExtensionDialog />

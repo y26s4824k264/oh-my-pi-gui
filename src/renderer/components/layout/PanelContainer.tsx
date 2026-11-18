@@ -1,6 +1,6 @@
 import { Bot, Diff, FolderTree, Globe, LayoutDashboard, MessageCircleQuestion, SquareTerminal, X } from "lucide-react";
-import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useActiveTabRouteReady } from "../../hooks/use-active-tab-route";
 import { cx } from "../../lib/format";
 import { useT } from "../../lib/i18n";
@@ -8,9 +8,8 @@ import { scrollStripOnWheel, useActiveChipInView } from "../../lib/strip-scroll"
 import { useActiveTabKind, useTabsStore } from "../../stores/tabs";
 import { CHAT_PANEL_TABS, type PanelTab, useUiStore } from "../../stores/ui";
 import { AgentRoster, useAgentsTabSignal } from "../agents/AgentRoster";
-import { PanelErrorBoundary, Spinner } from "../common";
+import { PanelErrorBoundary } from "../common";
 import { Glide } from "../common/Glide";
-import { WorkspacePageContext } from "../common/Modal";
 import { BrowserPanel } from "../panels/BrowserPanel";
 import { BtwPanel } from "../panels/BtwPanel";
 import { DiffPanel } from "../panels/DiffPanel";
@@ -20,15 +19,13 @@ import { TerminalPanel } from "../panels/TerminalPanel";
 
 const MIN_WIDTH = 360;
 const PANEL_WIDTH_PREF = "gui.panelWidth";
-const WORKSPACE_WIDTH_PREF = "gui.workspacePageWidth";
 const COMPACT_WIDTH = 1000;
 
 function getViewportWidth(): number {
 	return Number.isFinite(window.innerWidth) && window.innerWidth > 0 ? window.innerWidth : 1440;
 }
 
-function defaultPanelWidth(viewportWidth: number, workspacePage: boolean): number {
-	if (workspacePage) return Math.max(560, Math.round(viewportWidth * 0.54));
+function defaultPanelWidth(viewportWidth: number): number {
 	return viewportWidth <= COMPACT_WIDTH ? 460 : Math.max(MIN_WIDTH, Math.round(viewportWidth * 0.28));
 }
 
@@ -87,7 +84,7 @@ function InspectorTab({ label, description, icon: Icon, active, signal, onSelect
  * state (todos, plan, subagents, queue) renders in the center dock above the
  * composer, and application logs live in their own dialog.
  */
-export function PanelContainer({ workspace, workspaceKey }: { workspace?: ReactNode; workspaceKey?: string } = {}) {
+export function PanelContainer() {
 	const t = useT();
 	const panelTab = useUiStore(s => s.panelTab);
 	const setPanelTab = useUiStore(s => s.setPanelTab);
@@ -102,8 +99,7 @@ export function PanelContainer({ workspace, workspaceKey }: { workspace?: ReactN
 	const agentsSignal = useAgentsTabSignal();
 
 	const [viewportWidth, setViewportWidth] = useState(getViewportWidth);
-	const [width, setWidth] = useState(() => defaultPanelWidth(getViewportWidth(), Boolean(workspace)));
-	const widthPref = workspace ? WORKSPACE_WIDTH_PREF : PANEL_WIDTH_PREF;
+	const [width, setWidth] = useState(() => defaultPanelWidth(getViewportWidth()));
 	const [widthHydrated, setWidthHydrated] = useState(false);
 	const dragging = useRef(false);
 	const minWidth = Math.min(MIN_WIDTH, viewportWidth);
@@ -120,7 +116,7 @@ export function PanelContainer({ workspace, workspaceKey }: { workspace?: ReactN
 			return;
 		}
 		void prefs
-			.get(widthPref)
+			.get(PANEL_WIDTH_PREF)
 			.then(value => {
 				if (cancelled) return;
 				const saved = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : null;
@@ -135,15 +131,15 @@ export function PanelContainer({ workspace, workspaceKey }: { workspace?: ReactN
 		return () => {
 			cancelled = true;
 		};
-	}, [widthPref]);
+	}, []);
 
 	useEffect(() => {
 		if (!widthHydrated || typeof window.omp?.prefs?.set !== "function") return;
 		const timer = window.setTimeout(() => {
-			void window.omp.prefs.set(widthPref, Math.round(width)).catch(() => {});
+			void window.omp.prefs.set(PANEL_WIDTH_PREF, Math.round(width)).catch(() => {});
 		}, 150);
 		return () => window.clearTimeout(timer);
-	}, [width, widthHydrated, widthPref]);
+	}, [width, widthHydrated]);
 
 	useEffect(() => {
 		const updateViewport = () => setViewportWidth(getViewportWidth());
@@ -170,86 +166,68 @@ export function PanelContainer({ workspace, workspaceKey }: { workspace?: ReactN
 
 	return (
 		<aside
-			aria-busy={!workspace && !routeReady}
+			aria-busy={!routeReady}
 			data-inspector-left-edge={viewportWidth - panelWidth < 78 ? "" : undefined}
 			className={cx(
 				"omp-inspector flex h-full flex-col border-l border-[var(--omp-border-muted)]",
 				overlay ? "absolute inset-y-0 right-0 z-30 shadow-[var(--omp-shadow-lg)]" : "relative shrink-0",
-				!workspace && !routeReady && "pointer-events-none",
+				!routeReady && "pointer-events-none",
 			)}
 			style={{ width: panelWidth }}
 		>
-			{workspace ? (
-				<WorkspacePageContext.Provider value>
-					<PanelErrorBoundary key={workspaceKey}>
-						<Suspense
-							fallback={
-								<div className="m-auto">
-									<Spinner size="sm" />
-								</div>
-							}
-						>
-							{workspace}
-						</Suspense>
-					</PanelErrorBoundary>
-				</WorkspacePageContext.Provider>
-			) : (
-				<>
-					{/* One header row: the view switcher and the close control. The panel's
-			    name is announced, not printed — the tabs already say what it holds. */}
-					<div className="omp-inspector-header drag-region flex h-12 shrink-0 items-center gap-2 border-b border-[var(--omp-border-muted)] pl-3">
-						<h2 className="sr-only">
-							{t("panel.title")} — {t("panel.subtitle")}
-						</h2>
-						<div className="omp-segmented omp-tab-scroller no-drag" onWheel={scrollStripOnWheel}>
-							<Glide activeKey={visiblePanelTab} selector='[aria-pressed="true"]' variant="thumb" />
-							{visibleTabs.map(({ id, labelKey, icon }) => {
-								const active = visiblePanelTab === id;
-								return (
-									<InspectorTab
-										key={id}
-										label={t(labelKey)}
-										description={
-											id === "agents" && agentsSignal.tone
-												? t("agents.tab.label", {
-														label: t(labelKey),
-														state:
-															agentsSignal.tone === "error"
-																? t("agents.sidebar.moreFailed", { count: agentsSignal.failed })
-																: t("agents.sidebar.moreWorking", { count: agentsSignal.working }),
-													})
-												: t(labelKey)
-										}
-										icon={icon}
-										active={active}
-										signal={id === "agents" && !active ? agentsSignal.tone : null}
-										onSelect={() => setPanelTab(id)}
-									/>
-								);
-							})}
-						</div>
-						<button
-							type="button"
-							onClick={togglePanel}
-							title={t("panel.close")}
-							className="omp-pressable no-drag ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--omp-muted)] hover:bg-[var(--omp-selected-bg)] hover:text-[var(--omp-text)]"
-						>
-							<X size={16} />
-						</button>
-					</div>
-					<div className="min-h-0 flex-1 overflow-hidden">
-						<PanelErrorBoundary key={`${activeTabId ?? "no-tab"}:${visiblePanelTab}`}>
-							{visiblePanelTab === "overview" && <OverviewPanel />}
-							{visiblePanelTab === "agents" && <AgentRoster />}
-							{visiblePanelTab === "btw" && <BtwPanel />}
-							{visiblePanelTab === "diff" && <DiffPanel />}
-							{visiblePanelTab === "files" && <FilesPanel />}
-							{visiblePanelTab === "terminal" && <TerminalPanel />}
-							{visiblePanelTab === "browser" && <BrowserPanel />}
-						</PanelErrorBoundary>
-					</div>
-				</>
-			)}
+			{/* One header row: the view switcher and the close control. The panel's
+	    name is announced, not printed — the tabs already say what it holds. */}
+			<div className="omp-inspector-header drag-region flex h-12 shrink-0 items-center gap-2 border-b border-[var(--omp-border-muted)] pl-3">
+				<h2 className="sr-only">
+					{t("panel.title")} — {t("panel.subtitle")}
+				</h2>
+				<div className="omp-segmented omp-tab-scroller no-drag" onWheel={scrollStripOnWheel}>
+					<Glide activeKey={visiblePanelTab} selector='[aria-pressed="true"]' variant="thumb" />
+					{visibleTabs.map(({ id, labelKey, icon }) => {
+						const active = visiblePanelTab === id;
+						return (
+							<InspectorTab
+								key={id}
+								label={t(labelKey)}
+								description={
+									id === "agents" && agentsSignal.tone
+										? t("agents.tab.label", {
+												label: t(labelKey),
+												state:
+													agentsSignal.tone === "error"
+														? t("agents.sidebar.moreFailed", { count: agentsSignal.failed })
+														: t("agents.sidebar.moreWorking", { count: agentsSignal.working }),
+											})
+										: t(labelKey)
+								}
+								icon={icon}
+								active={active}
+								signal={id === "agents" && !active ? agentsSignal.tone : null}
+								onSelect={() => setPanelTab(id)}
+							/>
+						);
+					})}
+				</div>
+				<button
+					type="button"
+					onClick={togglePanel}
+					title={t("panel.close")}
+					className="omp-pressable no-drag ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--omp-muted)] hover:bg-[var(--omp-selected-bg)] hover:text-[var(--omp-text)]"
+				>
+					<X size={16} />
+				</button>
+			</div>
+			<div className="min-h-0 flex-1 overflow-hidden">
+				<PanelErrorBoundary key={`${activeTabId ?? "no-tab"}:${visiblePanelTab}`}>
+					{visiblePanelTab === "overview" && <OverviewPanel />}
+					{visiblePanelTab === "agents" && <AgentRoster />}
+					{visiblePanelTab === "btw" && <BtwPanel />}
+					{visiblePanelTab === "diff" && <DiffPanel />}
+					{visiblePanelTab === "files" && <FilesPanel />}
+					{visiblePanelTab === "terminal" && <TerminalPanel />}
+					{visiblePanelTab === "browser" && <BrowserPanel />}
+				</PanelErrorBoundary>
+			</div>
 			<div
 				role="separator"
 				aria-label={t("panel.resize")}

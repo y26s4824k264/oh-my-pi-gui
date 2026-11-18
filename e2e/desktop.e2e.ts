@@ -66,7 +66,7 @@ test.afterAll(async () => {
 
 test("the Jobs panel receives focus and Escape closes it", async () => {
 	await command("/jobs");
-	const panel = page.locator(".omp-inspector").getByRole("region");
+	const panel = page.locator("[data-workspace-page]").getByRole("region");
 	await expect(panel).toBeVisible();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await expect.poll(() => panel.evaluate(node => node.contains(document.activeElement))).toBe(true);
@@ -389,7 +389,7 @@ test("repeated modal and task lifecycles release sidecars and document listeners
 	const before = await listeners();
 	for (let index = 0; index < 100; index++) {
 		await command("/jobs");
-		const jobs = page.locator(".omp-inspector").getByRole("region");
+		const jobs = page.locator("[data-workspace-page]").getByRole("region");
 		await expect(jobs).toBeVisible();
 		await page.keyboard.press("Escape");
 		await expect(jobs).toHaveCount(0);
@@ -468,7 +468,7 @@ test("model benchmark, collaboration, tools and debug open without external muta
 		await command(`/${name}`);
 		const surface =
 			name === "tools" || name === "debug"
-				? page.locator(".omp-inspector").getByRole("region")
+				? page.locator("[data-workspace-page]").getByRole("region")
 				: page.getByRole("dialog");
 		await expect(surface).toBeVisible();
 		await expect.poll(() => surface.evaluate(node => node.contains(document.activeElement))).toBe(true);

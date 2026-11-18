@@ -3,7 +3,7 @@
  * while open and restored to the previously focused element on close.
  */
 
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { createContext, type ReactNode, useContext, useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useOverlayPresence } from "../../hooks/use-overlay-presence";
@@ -54,11 +54,11 @@ export interface ModalProps {
 export const WorkspacePageContext = createContext(false);
 
 export function Modal(props: ModalProps) {
-	const docked = useContext(WorkspacePageContext);
-	return docked && props.dockable ? <DockedPage {...props} /> : <OverlayModal {...props} />;
+	const inWorkspace = useContext(WorkspacePageContext);
+	return inWorkspace && props.dockable ? <WorkspacePage {...props} /> : <OverlayModal {...props} />;
 }
 
-function DockedPage({ open, onClose, title, ariaLabel, bodyClassName = "px-4 py-3", children }: ModalProps) {
+function WorkspacePage({ open, onClose, title, ariaLabel, bodyClassName = "px-4 py-3", children }: ModalProps) {
 	const t = useT();
 	const titleId = useId();
 	const sectionRef = useRef<HTMLElement>(null);
@@ -89,18 +89,19 @@ function DockedPage({ open, onClose, title, ariaLabel, bodyClassName = "px-4 py-
 				}
 			}}
 		>
-			<header className="omp-inspector-header drag-region flex h-12 shrink-0 items-center justify-between gap-3 border-b border-(--omp-border-muted) pl-4">
-				<h2 id={titleId} className="min-w-0 truncate text-omp-lg font-semibold">
-					{title}
-				</h2>
+			<header className="omp-workspace-page-header drag-region flex h-12 shrink-0 items-center gap-3 border-b border-(--omp-border-muted) px-4">
 				<button
-					aria-label={t("panel.close")}
+					aria-label={t("settings.backToChat")}
+					title={t("settings.backToChat")}
 					className="no-drag flex size-8 shrink-0 items-center justify-center rounded-lg text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text)"
 					onClick={onClose}
 					type="button"
 				>
-					<X size={16} />
+					<ArrowLeft size={16} />
 				</button>
+				<h2 id={titleId} className="min-w-0 truncate text-omp-lg font-semibold">
+					{title}
+				</h2>
 			</header>
 			<div className={`omp-docked-page-content min-h-0 min-w-0 flex-1 overflow-auto ${bodyClassName}`}>
 				{/* Confirmation and editor modals belonging to this page keep their own overlay. */}
