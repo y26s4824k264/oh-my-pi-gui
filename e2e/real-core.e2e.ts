@@ -134,12 +134,15 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 			transcript.dispatchEvent(new DragEvent("drop", { dataTransfer, bubbles: true, cancelable: true }));
 			input.remove();
 		});
-		await expect(composer).toHaveValue(`@"${attachmentName}" `);
+		await expect(composer).toHaveValue("");
+		await expect(page.getByRole("button", { name: "Send (Enter)", exact: true })).toBeEnabled();
 		const removeAttachment = page.getByRole("button", { name: `Remove ${attachmentName}`, exact: true });
 		await expect(removeAttachment).toBeVisible();
+		await composer.fill("Read the attached plan");
 		await removeAttachment.click();
-		await expect(composer).toHaveValue("");
+		await expect(composer).toHaveValue("Read the attached plan");
 		await expect(removeAttachment).toHaveCount(0);
+		await composer.clear();
 		await page.getByRole("button", { name: "Review changes and files", exact: true }).click();
 		await page.getByRole("button", { name: "Files", exact: true }).click();
 		const tree = page.getByRole("tree");

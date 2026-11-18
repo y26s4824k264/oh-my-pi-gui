@@ -16,7 +16,7 @@
  */
 
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSubagentStreamPoll } from "../../../hooks/use-subagent-stream-poll";
 import { cx } from "../../../lib/format";
 import { useT } from "../../../lib/i18n";
@@ -32,9 +32,8 @@ import { QueueDockChip } from "./QueueDockChip";
 import { TodoDockCard } from "./TodoDockCard";
 import { useWorkspaceDockFocus, WorkspaceDockFocusProvider } from "./WorkspaceDockFocus";
 
-function clampFocusHeight(height: number): number {
-	return Math.round(Math.min(Math.max(200, window.innerHeight - 220), Math.max(200, height)));
-}
+const MIN_DOCK_HEIGHT = 64;
+const TRANSCRIPT_SPACE = 72;
 
 function WorkspaceDockContent() {
 	const { focusedCard } = useWorkspaceDockFocus();
@@ -54,24 +53,27 @@ function WorkspaceDockContent() {
 	const [focusHeight, setFocusHeight] = useState<number | null>(() => {
 		try {
 			const stored = Number(localStorage.getItem("omp.dock.focusHeight"));
-			return stored >= 200 ? clampFocusHeight(stored) : null;
+			return Number.isFinite(stored) && stored >= MIN_DOCK_HEIGHT ? stored : null;
 		} catch {
 			return null;
 		}
 	});
-	const clampHeight = useCallback(clampFocusHeight, []);
-	const persistHeight = useCallback((height: number) => {
+	const persistHeight = (height: number) => {
 		try {
 			localStorage.setItem("omp.dock.focusHeight", String(height));
 		} catch {
 			/* storage unavailable — session-only */
 		}
-	}, []);
+	};
+	const clampHeight = (height: number) => {
+		const available = scrollerRef.current?.closest("[data-conversation-body]")?.clientHeight || window.innerHeight;
+		return Math.round(
+			Math.min(Math.max(MIN_DOCK_HEIGHT, available - TRANSCRIPT_SPACE), Math.max(MIN_DOCK_HEIGHT, height)),
+		);
+	};
 	useEffect(() => {
-		const clamp = () => setFocusHeight(height => (height === null ? null : clampFocusHeight(height)));
-		window.addEventListener("resize", clamp);
-		return () => window.removeEventListener("resize", clamp);
-	}, []);
+		if (focusedCard && scrollerRef.current) scrollerRef.current.scrollTop = 0;
+	}, [focusedCard]);
 
 	const onHandleDown = (event: ReactPointerEvent<HTMLDivElement>) => {
 		const el = scrollerRef.current;
@@ -95,13 +97,15 @@ function WorkspaceDockContent() {
 		const step = event.key === "ArrowUp" ? 48 : event.key === "ArrowDown" ? -48 : 0;
 		if (!step) return;
 		event.preventDefault();
-		const current = focusHeight ?? scrollerRef.current?.clientHeight ?? 320;
+		const current = scrollerRef.current?.clientHeight || MIN_DOCK_HEIGHT;
 		const next = clampHeight(current + step);
 		setFocusHeight(next);
 		persistHeight(next);
 	};
 
 	if (!cardsVisible && !goalVisible) return null;
+	const preferredHeight = focusHeight === null ? "72cqh" : `${focusHeight}px`;
+	const detailHeight = `min(max(${MIN_DOCK_HEIGHT}px, ${preferredHeight}), max(${MIN_DOCK_HEIGHT}px, calc(100cqh - ${TRANSCRIPT_SPACE}px)))`;
 
 	return (
 		<div className="flex flex-col gap-1.5 pb-1.5" data-focused-card={focusedCard ?? undefined}>
@@ -117,6 +121,7 @@ function WorkspaceDockContent() {
 							onPointerDown={onHandleDown}
 							onPointerMove={onHandleMove}
 							onPointerUp={onHandleUp}
+							onPointerCancel={onHandleUp}
 							role="separator"
 							tabIndex={0}
 							title={t("dock.resizeHeight")}
@@ -127,17 +132,11 @@ function WorkspaceDockContent() {
 							// The reserved gutter hangs outside the column (negative margin of the
 							// bar's width), so the cards end on the composer's right edge.
 							"-mr-(--omp-scrollbar-size) flex flex-col gap-1.5 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]",
-							// Summary state stays compact. A FOCUSED card renders the full
-							// list; its cap is an INLINE style — arbitrary-value classes
-							// cannot express `calc(100dvh - 240px)` (the bare dash makes
-							// the declaration invalid, silently removing every bound and
-							// killing scrollability).
-							// The utility is the bound; .omp-dock-summary tightens it in a short window.
-							focusedCard ? undefined : "omp-dock-summary max-h-[min(40vh,320px)]",
+							!focusedCard && "omp-dock-summary",
 						)}
 						data-testid="workspace-dock"
 						ref={scrollerRef}
-						style={focusedCard ? { maxHeight: focusHeight ?? "min(50dvh, calc(100dvh - 300px))" } : undefined}
+						style={focusedCard ? { maxHeight: detailHeight } : undefined}
 					>
 						<PanelErrorBoundary>
 							<PlanDockCard />

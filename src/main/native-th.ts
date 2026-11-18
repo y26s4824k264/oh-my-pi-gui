@@ -125,7 +125,7 @@ export const TH_TRAY_TEXT: Record<TrayLabelKey, string> = {
 	statusStreaming: "กำลังทำงาน",
 	statusWaiting: "รออินพุต",
 	statusError: "ข้อผิดพลาด",
-	quotaUsed: "ใช้ไป {percent}",
+	quotaRemaining: "เหลือ {percent}",
 	quotaReached: "ถึงลิมิต",
 	quotaResets: "รีเซ็ต {time}",
 	quotaUpdated: "อัปเดต {time}",

@@ -223,7 +223,7 @@ function SessionConversation() {
 				requestAnimationFrame(() => composer?.focus());
 			}}
 		>
-			<div className="relative flex min-h-0 flex-1 flex-col">
+			<div data-conversation-body className="relative flex min-h-0 flex-1 flex-col [container-type:size]">
 				<ChatStream />
 				<div className="omp-composer-region relative shrink-0 bg-transparent pt-2">
 					<div className="omp-composer-shell relative w-full">

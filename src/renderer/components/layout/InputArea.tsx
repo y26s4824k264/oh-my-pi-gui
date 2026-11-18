@@ -60,7 +60,7 @@ import { ComposerModes } from "./ComposerModes";
 import { ContextStrategyBar } from "./ContextStrategyBar";
 import { DictationStrip } from "./DictationStrip";
 import { HistorySearchOverlay } from "./HistorySearchOverlay";
-import { fileToImage, findMention, listMentionFiles, mentionFileCache, removeMention } from "./input-area-utils";
+import { fileToImage, listMentionFiles, mentionFileCache } from "./input-area-utils";
 import { ThinkingControl } from "./ThinkingControl";
 import { type CompletionItem, type CompletionMenu, useCompletionMenu } from "./use-completion-menu";
 import { useComposerFiles } from "./use-composer-files";
@@ -108,8 +108,8 @@ export function InputArea() {
 	const setText = useComposerStore(s => s.setDraft);
 	const images = useComposerStore(s => s.images);
 	const setImages = useComposerStore(s => s.setImages);
-	const files = useComposerStore(s => s.files);
-	const attachedFiles = useMemo(() => files.filter(file => findMention(text, file.mention) !== -1), [files, text]);
+	const attachedFiles = useComposerStore(s => s.files);
+	const removeFile = useComposerStore(s => s.removeFile);
 	const [menu, setMenu] = useState<CompletionMenu | null>(null);
 	const menuListRef = useRef<HTMLDivElement>(null);
 	// The menu lists every match and scrolls; keep the keyboard selection in view.
@@ -709,7 +709,7 @@ export function InputArea() {
 		insertPasteBlob(content);
 	};
 
-	const hasDraft = text.trim().length > 0 || images.length > 0;
+	const hasDraft = text.trim().length > 0 || images.length > 0 || attachedFiles.length > 0;
 	/** Holding the follow-up modifier over a running turn turns the next send into a follow-up. */
 	const followUpHeld = useFollowUpModifierHeld(isStreaming && hasDraft);
 
@@ -916,7 +916,7 @@ export function InputArea() {
 												type="button"
 												disabled={collabReadOnly}
 												aria-label={t("input.removeFileAttachment", { name: file.name })}
-												onClick={() => setText(current => removeMention(current, file.mention))}
+												onClick={() => removeFile(file.mention)}
 												className="shrink-0 rounded p-1 text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text)"
 											>
 												<X size={12} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendMentions, droppedFileMention, removeMention } from "./input-area-utils";
+import { appendMentions, droppedFileMention } from "./input-area-utils";
 
 describe("droppedFileMention", () => {
 	it("makes files under the workspace relative", () => {
@@ -27,21 +27,15 @@ describe("droppedFileMention", () => {
 });
 
 describe("appendMentions", () => {
-	it("separates mentions from the draft with single spaces and leaves the caret after a space", () => {
-		expect(appendMentions("", ["@a.ts"])).toBe("@a.ts ");
-		expect(appendMentions("look at", ["@a.ts", "@b.ts"])).toBe("look at @a.ts @b.ts ");
-		expect(appendMentions("look at ", ["@a.ts"])).toBe("look at @a.ts ");
-		expect(appendMentions("unchanged", [])).toBe("unchanged");
+	it("separates mentions from the submitted text without altering existing whitespace", () => {
+		expect(appendMentions("", ["@a.ts"])).toBe("@a.ts");
+		expect(appendMentions("look at", ["@a.ts", "@b.ts"])).toBe("look at @a.ts @b.ts");
+		expect(appendMentions("look at\n", ["@a.ts"])).toBe("look at\n@a.ts");
+		expect(appendMentions("unchanged\n", [])).toBe("unchanged\n");
 	});
-});
-
-describe("removeMention", () => {
-	it("removes just the selected attachment, preserving other draft text", () => {
-		expect(removeMention('Compare @"floor plan.dwg" @plan.dwg.zip @plan.dwg ', "@plan.dwg")).toBe(
-			'Compare @"floor plan.dwg" @plan.dwg.zip',
-		);
-		expect(removeMention('@"floor plan.dwg" then check the dimensions', '@"floor plan.dwg"')).toBe(
-			"then check the dimensions",
+	it("keeps a single mention when the same file was manually referenced in the text", () => {
+		expect(appendMentions('Compare @"floor plan.dwg" @plan.dwg.zip', ['@"floor plan.dwg"', "@plan.dwg"])).toBe(
+			'Compare @"floor plan.dwg" @plan.dwg.zip @plan.dwg',
 		);
 	});
 });

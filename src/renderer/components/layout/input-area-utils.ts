@@ -115,25 +115,12 @@ export function droppedFileMention(filePath: string, cwd: string): string {
 	return `@${quote}${relative}${quote}`;
 }
 
-export function findMention(draft: string, mention: string): number {
-	for (const match of draft.matchAll(/(?:^|\s)(@(?:"[^"]+"|'[^']+'|[^\s@]+))/g)) {
-		if (match[1] === mention) return match.index + match[0].length - mention.length;
-	}
-	return -1;
-}
-
-export function removeMention(draft: string, mention: string): string {
-	const start = findMention(draft, mention);
-	if (start < 0) return draft;
-	const end = start + mention.length;
-	const tail = draft[end] === " " ? end + 1 : end;
-	const head = tail === draft.length && draft[start - 1] === " " ? start - 1 : start;
-	return draft.slice(0, head) + draft.slice(tail);
-}
-
-/** Append mentions to a draft, keeping one space between the draft and each mention. */
+/** Serialize file mentions alongside user text without repeating manually typed mentions. */
 export function appendMentions(draft: string, mentions: string[]): string {
 	if (mentions.length === 0) return draft;
+	const existing = new Set(Array.from(draft.matchAll(/(?:^|\s)(@(?:"[^"]+"|'[^']+'|[^\s@]+))/g), match => match[1]));
+	const additions = mentions.filter(mention => !existing.has(mention));
+	if (additions.length === 0) return draft;
 	const separator = draft && !/\s$/.test(draft) ? " " : "";
-	return `${draft}${separator}${mentions.join(" ")} `;
+	return `${draft}${separator}${additions.join(" ")}`;
 }

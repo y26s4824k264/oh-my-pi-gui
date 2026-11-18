@@ -125,7 +125,7 @@ export const RU_TRAY_TEXT: Record<TrayLabelKey, string> = {
 	statusStreaming: "Выполняется",
 	statusWaiting: "Требуется ввод",
 	statusError: "Ошибка",
-	quotaUsed: "использовано {percent}",
+	quotaRemaining: "осталось {percent}",
 	quotaReached: "лимит исчерпан",
 	quotaResets: "сброс {time}",
 	quotaUpdated: "Обновлено {time}",

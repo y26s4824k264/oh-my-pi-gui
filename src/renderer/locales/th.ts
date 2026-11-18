@@ -409,7 +409,7 @@ export const th: Record<string, string> = {
 	"input.more.autoCompact": "ย่อบริบทอัตโนมัติ",
 	"input.more.autoRetry": "ลองใหม่อัตโนมัติเมื่อล้มเหลว",
 	"input.more.steeringAll": "สั่งเพิ่มข้อความในคิวทั้งหมด",
-	"input.more.interruptImmediate": "หยุดทันทีเมื่อสั่งยกเลิก",
+	"input.more.interruptImmediate": "ข้อความปรับทิศทางขัดจังหวะเครื่องมือได้",
 	"workspaces.title": "พื้นที่ทำงาน",
 	"workspaces.newSessionTitle": "เซสชันใหม่ — เลือกพื้นที่ทำงาน",
 	"workspaces.add": "เพิ่มโปรเจกต์…",
@@ -583,7 +583,7 @@ export const th: Record<string, string> = {
 	"sidebar.bulk.delete": "ลบรายการที่เลือก",
 	"sidebar.bulk.cancel": "เลือกเสร็จแล้ว",
 	"sidebar.quotas.more": "โควตาอื่น ({count})",
-	"sidebar.quotas.limit": "{label}: ใช้ไป {percent}",
+	"sidebar.quotas.limit": "{label}: เหลือ {percent}",
 	"sidebar.quotas.reached": "ถึงขีดจำกัดแล้ว",
 	"sidebar.quotas.resets": "รีเซ็ต {time}",
 	"sidebar.quotas.updated": "อัปเดตเมื่อ {time}",
@@ -1110,7 +1110,7 @@ export const th: Record<string, string> = {
 	"modelCompare.col.model": "โมเดล",
 	"modelCompare.col.context": "บริบท",
 	"modelCompare.col.cost": "ต้นทุน /1M in · out",
-	"modelCompare.col.quota": "โควตา",
+	"modelCompare.col.quota": "โควตาที่เหลือ",
 	"modelCompare.col.roles": "บทบาท",
 	"modelCompare.col.actions": "การดำเนินการ",
 	"modelCompare.use": "ใช้",
@@ -3351,6 +3351,7 @@ export const th: Record<string, string> = {
 	// Center dock (above the composer)
 	"dock.collapse": "ย่อ",
 	"dock.expand": "ขยาย",
+	"dock.viewDetails": "เปิดรายละเอียด {title}",
 	"dock.backToSummary": "กลับไปที่สรุป",
 	"dock.viewAllTodos": "อีก {hidden} · ดู todo ทั้งหมด {total} รายการ",
 	"dock.viewAllAgents": "อีก {hidden} · ดู Agent ทั้งหมด {total} ตัว",
@@ -3405,8 +3406,8 @@ export const th: Record<string, string> = {
 
 	// Usage window additions
 	"usage.notConnected": "Agent ไม่ได้เชื่อมต่อ",
-	"usage.valueUsed": "ใช้ไป {value}",
-	"usage.valueUnknown": "ไม่ทราบ",
+	"usage.valueRemaining": "เหลือ {value}",
+	"usage.valueUnknown": "ไม่ทราบโควตาที่เหลือ",
 
 	// Providers window additions
 	"providers.notConnected": "Agent ไม่ได้เชื่อมต่อ",

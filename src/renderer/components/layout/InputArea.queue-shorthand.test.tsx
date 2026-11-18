@@ -271,12 +271,15 @@ afterEach(async () => {
 describe("InputArea queue shorthand submit", () => {
 	it("restores an unacknowledged send after process recovery and blocks duplicate submission", async () => {
 		await mount(true);
+		const file = { name: "drawing 1.dwg", mention: '@"drawing 1.dwg"' };
+		await act(async () => useComposerStore.getState().addFiles([file]));
 		const pending = Promise.withResolvers<RpcResponse>();
 		prompt.mockReturnValueOnce(pending.promise);
 		await typeInto(findTextarea(), "preserve in-flight input");
 		await pressEnter(findTextarea());
 		await flush();
 		expect(prompt).toHaveBeenCalledTimes(1);
+		expect(prompt).toHaveBeenCalledWith('preserve in-flight input @"drawing 1.dwg"', []);
 		await typeInto(findTextarea(), "next draft");
 		const recovering = withSessionRuntime("t0", () => useComposerStore.getState());
 		expect(recovering.sending).toBe(true);
@@ -305,6 +308,7 @@ describe("InputArea queue shorthand submit", () => {
 		});
 		await flush();
 		expect(useComposerStore.getState().draft).toBe("preserve in-flight input\nnext draft");
+		expect(useComposerStore.getState().files).toEqual([file]);
 		expect(useComposerStore.getState().submissionUncertain).toBe(true);
 		expect(useComposerStore.getState().sending).toBe(false);
 		await pressEnter(findTextarea());
@@ -796,6 +800,41 @@ describe("InputArea run settings", () => {
 
 		expect(setPlanMode).toHaveBeenCalledWith(true);
 		expect(useSessionStore.getState().planModeEnabled).toBe(true);
+	});
+});
+
+describe("InputArea file attachments", () => {
+	it("sends a file without text and clears its card after delivery", async () => {
+		await mount();
+		const file = { name: "测试原型 V2.5.html", mention: '@"/tmp/测试原型 V2.5.html"' };
+		await act(async () => useComposerStore.getState().addFiles([file, file]));
+		expect(document.querySelectorAll('button[aria-label="Remove 测试原型 V2.5.html"]')).toHaveLength(1);
+		expect(useComposerStore.getState().draft).toBe("");
+		await pressEnter(findTextarea());
+		await flush();
+		expect(steer).toHaveBeenCalledExactlyOnceWith(file.mention, []);
+		expect(document.querySelector('button[aria-label="Remove 测试原型 V2.5.html"]')).toBeNull();
+	});
+
+	it("restores the card with the last queue item if that item fails after an earlier delivery", async () => {
+		await mount();
+		const file = { name: "details.ifc", mention: "@details.ifc" };
+		await act(async () => useComposerStore.getState().addFiles([file]));
+		followUp.mockResolvedValueOnce(ok()).mockResolvedValueOnce({
+			type: "response",
+			command: "follow_up",
+			success: false,
+			error: "Queue refused the item",
+		});
+		await typeInto(findTextarea(), "->\n1. First\n2. Last");
+		await pressEnter(findTextarea());
+		await flush();
+		expect(followUp.mock.calls).toEqual([
+			["First", []],
+			["Last @details.ifc", undefined],
+		]);
+		expect(useComposerStore.getState().draft).toBe("=> Last");
+		expect(useComposerStore.getState().files).toEqual([file]);
 	});
 });
 

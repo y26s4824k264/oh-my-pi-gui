@@ -409,7 +409,7 @@ export const zh: Record<string, string> = {
 	"input.more.autoCompact": "自动压缩上下文",
 	"input.more.autoRetry": "失败自动重试",
 	"input.more.steeringAll": "转向所有排队消息",
-	"input.more.interruptImmediate": "中止时立即打断",
+	"input.more.interruptImmediate": "转向消息可打断工具",
 	"workspaces.title": "工作区",
 	"workspaces.newSessionTitle": "新建会话 — 选择工作区",
 	"workspaces.add": "添加项目…",
@@ -581,7 +581,7 @@ export const zh: Record<string, string> = {
 	"sidebar.bulk.delete": "删除所选会话",
 	"sidebar.bulk.cancel": "退出选择",
 	"sidebar.quotas.more": "更多配额（{count}）",
-	"sidebar.quotas.limit": "{label}：已用 {percent}",
+	"sidebar.quotas.limit": "{label}：剩余 {percent}",
 	"sidebar.quotas.reached": "已达上限",
 	"sidebar.quotas.resets": "{time} 重置",
 	"sidebar.quotas.updated": "更新于 {time}",
@@ -1112,7 +1112,7 @@ export const zh: Record<string, string> = {
 	"modelCompare.col.model": "模型",
 	"modelCompare.col.context": "上下文",
 	"modelCompare.col.cost": "费用 /1M 输入 · 输出",
-	"modelCompare.col.quota": "配额",
+	"modelCompare.col.quota": "剩余额度",
 	"modelCompare.col.roles": "角色",
 	"modelCompare.col.actions": "操作",
 	"modelCompare.use": "使用",
@@ -3365,6 +3365,7 @@ export const zh: Record<string, string> = {
 	// Center dock (above the composer)
 	"dock.collapse": "折叠",
 	"dock.expand": "展开",
+	"dock.viewDetails": "展开{title}详情",
 	"dock.backToSummary": "返回摘要",
 	"dock.viewAllTodos": "另有 {hidden} 项 · 查看全部 {total} 项任务",
 	"dock.viewAllAgents": "另有 {hidden} 个 · 查看全部 {total} 个代理",
@@ -3419,8 +3420,8 @@ export const zh: Record<string, string> = {
 
 	// Usage window additions
 	"usage.notConnected": "代理未连接",
-	"usage.valueUsed": "已用 {value}",
-	"usage.valueUnknown": "未知",
+	"usage.valueRemaining": "剩余 {value}",
+	"usage.valueUnknown": "剩余额度未知",
 
 	// Providers window additions
 	"providers.notConnected": "代理未连接",

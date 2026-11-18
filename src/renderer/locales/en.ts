@@ -424,7 +424,7 @@ export const en: Record<string, string> = {
 	"input.more.autoCompact": "Auto-compact context",
 	"input.more.autoRetry": "Auto-retry on failure",
 	"input.more.steeringAll": "Steer all queued messages",
-	"input.more.interruptImmediate": "Interrupt immediately on abort",
+	"input.more.interruptImmediate": "Steering can interrupt tools",
 	"workspaces.title": "Workspaces",
 	"workspaces.newSessionTitle": "New session — choose workspace",
 	"workspaces.add": "Add project…",
@@ -609,7 +609,7 @@ export const en: Record<string, string> = {
 	"sidebar.bulk.delete": "Delete selected",
 	"sidebar.bulk.cancel": "Done selecting",
 	"sidebar.quotas.more": "More quotas ({count})",
-	"sidebar.quotas.limit": "{label}: {percent} used",
+	"sidebar.quotas.limit": "{label}: {percent} remaining",
 	"sidebar.quotas.reached": "limit reached",
 	"sidebar.quotas.resets": "resets {time}",
 	"sidebar.quotas.updated": "Updated {time}",
@@ -1147,7 +1147,7 @@ export const en: Record<string, string> = {
 	"modelCompare.col.model": "Model",
 	"modelCompare.col.context": "Context",
 	"modelCompare.col.cost": "Cost /1M in · out",
-	"modelCompare.col.quota": "Quota",
+	"modelCompare.col.quota": "Quota left",
 	"modelCompare.col.roles": "Roles",
 	"modelCompare.col.actions": "Actions",
 	"modelCompare.use": "Use",
@@ -3444,6 +3444,7 @@ export const en: Record<string, string> = {
 	// Center dock (above the composer)
 	"dock.collapse": "Collapse",
 	"dock.expand": "Expand",
+	"dock.viewDetails": "Open {title} details",
 	"dock.backToSummary": "Back to summary",
 	"dock.viewAllTodos": "{hidden} more · View all {total} todos",
 	"dock.viewAllAgents": "{hidden} more · View all {total} agents",
@@ -3498,8 +3499,8 @@ export const en: Record<string, string> = {
 
 	// Usage window additions
 	"usage.notConnected": "Agent not connected",
-	"usage.valueUsed": "{value} used",
-	"usage.valueUnknown": "unknown",
+	"usage.valueRemaining": "{value} remaining",
+	"usage.valueUnknown": "Remaining unknown",
 
 	// Providers window additions
 	"providers.notConnected": "Agent not connected",

@@ -143,7 +143,7 @@ describe("TodoDockCard", () => {
 		expect(dock).not.toBeNull();
 		const className = dock?.getAttribute("class") ?? "";
 		expect(className).toContain("overflow-y-auto");
-		expect(className).toContain("max-h-");
+		expect(className).toContain("omp-dock-summary");
 	});
 	it("applies an explicit inline max-height when a card is focused, so long lists scroll", async () => {
 		// Regression: the focused cap was expressed as an arbitrary Tailwind

@@ -2,7 +2,7 @@ import { useT } from "../../lib/i18n";
 import { type ComposerFile, useComposerStore } from "../../stores/composer";
 import { useSessionStore } from "../../stores/session";
 import { toast } from "../../stores/toast";
-import { appendMentions, droppedFileMention, fileToImage, findMention, isInlineImage } from "./input-area-utils";
+import { droppedFileMention, fileToImage, isInlineImage } from "./input-area-utils";
 
 /** Stage local paths and inline images in the surrounding session's draft. */
 export function useComposerFiles() {
@@ -10,7 +10,6 @@ export function useComposerFiles() {
 	const cwd = useSessionStore(state => state.cwd);
 	const readOnly = useSessionStore(state => state.collab?.readOnly === true);
 	const addFiles = useComposerStore(state => state.addFiles);
-	const setText = useComposerStore(state => state.setDraft);
 	const setImages = useComposerStore(state => state.setImages);
 
 	const attachFiles = (incoming: File[]) => {
@@ -27,16 +26,7 @@ export function useComposerFiles() {
 			if (path) localFiles.push({ name: file.name, mention: droppedFileMention(path, cwd) });
 			else unavailable = true;
 		}
-		if (localFiles.length > 0) {
-			addFiles(localFiles);
-			const mentions = [...new Set(localFiles.map(file => file.mention))];
-			setText(current =>
-				appendMentions(
-					current,
-					mentions.filter(mention => findMention(current, mention) === -1),
-				),
-			);
-		}
+		if (localFiles.length > 0) addFiles(localFiles);
 		const reportFailure = () => toast({ variant: "warning", message: t("input.attachmentFailed") });
 		if (unavailable) reportFailure();
 		if (imageReads.length > 0) {
