@@ -74,6 +74,7 @@ import type { BrowserHost } from "./browser-host";
 import type { ConversationIndex } from "./conversation-index";
 import { type CustomThemesWatcher, deleteCustomTheme, readCustomThemes, saveCustomTheme } from "./custom-themes";
 import { ensureDefaultWorkspace } from "./default-workspace";
+import { readDocumentPreview } from "./document-preview";
 import { openInExternalEditor, openMacConfigEditor } from "./editor";
 import { readImageFile } from "./fs-image";
 import { mainT } from "./i18n";
@@ -1367,6 +1368,17 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 			return fail(err instanceof Error ? err.message : String(err));
 		}
 	});
+
+	ipcMain.handle(
+		IPC_COMMANDS.FS_DOCUMENT_PREVIEW,
+		async (event, payload: { path: string; thumbnail: boolean; tabId?: string }) => {
+			if (typeof payload?.path !== "string" || !payload.path || typeof payload.thumbnail !== "boolean")
+				return { kind: "unavailable" };
+			const absolute = toAbsolutePath(payload.path, cwdFor(deps, event, payload.tabId));
+			if ("error" in absolute) return { kind: "unavailable" };
+			return readDocumentPreview(absolute.path, payload.thumbnail);
+		},
+	);
 
 	const pluginCatalog = new PluginCatalog({
 		fetch: (url, init) => net.fetch(url, init),

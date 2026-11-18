@@ -1,8 +1,8 @@
 import {
 	ArrowUp,
 	Box,
+	Check,
 	ChevronDown,
-	File as FileIcon,
 	History,
 	ListEnd,
 	Loader2,
@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 import type { AvailableCommand, ImageContent } from "../../../shared/rpc-types";
 import { useFollowUpModifierHeld } from "../../hooks/use-follow-up-modifier";
 import { useOverlayPresence } from "../../hooks/use-overlay-presence";
+import { splitAttachmentMentions } from "../../lib/attachment-mentions";
 import { useDisplayPreference } from "../../lib/display-preferences";
 import { tryEmojiInlineReplace } from "../../lib/emoji";
 import { describeError } from "../../lib/errors";
@@ -44,7 +45,7 @@ import { insertQuote } from "../../lib/quote-selection";
 import { useTabRpc } from "../../lib/tab-rpc";
 import { useComposerStore } from "../../stores/composer";
 import { useInputHistoryStore } from "../../stores/input-history";
-import { useModelStore } from "../../stores/model";
+import { type ModelSpeed, useModelStore } from "../../stores/model";
 import { type SessionStore, useSessionStore } from "../../stores/session";
 import { sessionRuntimeStore, useRuntimeTabId } from "../../stores/session-runtime-context";
 import { useSettingsStore } from "../../stores/settings";
@@ -52,6 +53,7 @@ import { useActiveTabKind, useTabsStore } from "../../stores/tabs";
 import { toast } from "../../stores/toast";
 import { useUiStore } from "../../stores/ui";
 import { ContextMenu, type ContextMenuAnchor } from "../common/ContextMenu";
+import { FileAttachmentCard } from "../common/FileAttachmentCard";
 import { ZoomableImage } from "../common/ImageViewer";
 import { AdvisorBadge } from "./AdvisorBadge";
 import { ApprovalControl } from "./ApprovalControl";
@@ -878,14 +880,17 @@ export function InputArea() {
 									</button>
 								</div>
 							)}
-							{images.length > 0 && (
-								<div className="mb-3 flex flex-wrap gap-2">
+							{(images.length > 0 || attachedFiles.length > 0) && (
+								<div className="mb-3 flex flex-wrap items-start gap-2" data-composer-attachments>
 									{images.map((image, index) => (
-										<div key={index} className="group relative">
+										<div key={index} className="group relative max-w-full shrink-0">
 											<ZoomableImage
 												src={image.preview}
 												alt={t("input.attachmentAlt", { index: index + 1 })}
-												className="h-16 w-16 rounded-lg border border-[var(--omp-border-muted)] object-cover"
+												onOpen={() =>
+													useUiStore.getState().openImagePreview(image.preview, t("chat.attachedImage"))
+												}
+												className="h-[6.25rem] w-28 max-w-full rounded-lg border border-(--omp-border-muted) object-cover"
 											/>
 											<button
 												type="button"
@@ -893,35 +898,20 @@ export function InputArea() {
 												onClick={() =>
 													setImages(previous => previous.filter((_, itemIndex) => itemIndex !== index))
 												}
-												className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--omp-error)] text-[var(--omp-btn-danger-text)] opacity-0 shadow-sm transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
+												className="absolute top-1 right-1 grid size-5 place-items-center rounded-full border border-(--omp-border-muted) bg-(--omp-bg-elevated) text-(--omp-muted) hover:text-(--omp-text)"
 											>
 												<X size={11} />
 											</button>
 										</div>
 									))}
-								</div>
-							)}
-							{attachedFiles.length > 0 && (
-								<div className="mb-3 flex flex-wrap gap-2">
 									{attachedFiles.map(file => (
-										<div
+										<FileAttachmentCard
 											key={file.mention}
-											className="flex max-w-full items-center gap-1.5 rounded-md border border-(--omp-border-muted) py-1 pl-2 pr-1 text-omp-sm"
-										>
-											<FileIcon size={14} className="shrink-0" aria-hidden="true" />
-											<span className="truncate" title={file.mention}>
-												{file.name}
-											</span>
-											<button
-												type="button"
-												disabled={collabReadOnly}
-												aria-label={t("input.removeFileAttachment", { name: file.name })}
-												onClick={() => removeFile(file.mention)}
-												className="shrink-0 rounded p-1 text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text)"
-											>
-												<X size={12} />
-											</button>
-										</div>
+											name={file.name}
+											path={file.path ?? splitAttachmentMentions(file.mention).paths[0] ?? file.name}
+											onRemove={() => removeFile(file.mention)}
+											removeDisabled={collabReadOnly}
+										/>
 									))}
 								</div>
 							)}
@@ -1271,24 +1261,89 @@ export function InputArea() {
 
 function FastModeControl({ menuItem = false }: { menuItem?: boolean }) {
 	const t = useT();
+	const model = useModelStore(s => s.model);
 	const enabled = useModelStore(s => s.fastModeEnabled);
 	const active = useModelStore(s => s.fastModeActive);
+	const ultrafast = useModelStore(s => s.fastModeUltrafast);
 	const toggleFastMode = useModelStore(s => s.toggleFastMode);
+	const setModelSpeed = useModelStore(s => s.setModelSpeed);
+	const [menu, setMenu] = useState<ContextMenuAnchor | null>(null);
+	const chatGpt = model?.api === "openai-codex-responses" || model?.provider === "openai-codex";
+	const selected: ModelSpeed = active ? (ultrafast ? "ultrafast" : "fast") : "standard";
+	const options = (["standard", "fast", "ultrafast"] as const).map(id => {
+		const tiers = model?.serviceTiers;
+		const disabled =
+			id === "ultrafast"
+				? !tiers?.includes("ultrafast")
+				: id === "fast" && !!tiers?.length && !tiers.includes("priority");
+		return {
+			id,
+			label: t(`input.speed.${id}`),
+			disabled,
+			disabledReason: disabled ? t("input.speed.unavailable") : undefined,
+			icon: id === selected ? Check : undefined,
+			onSelect: () => void setModelSpeed(id),
+		};
+	});
+	if (chatGpt && menuItem) {
+		return (
+			<div role="group" aria-label={t("input.speed.title")} className="flex flex-wrap gap-0.5 px-1 py-0.5">
+				{options.map(item => (
+					<button
+						key={item.id}
+						type="button"
+						role="menuitemradio"
+						aria-checked={item.id === selected}
+						title={item.disabledReason}
+						disabled={item.disabled}
+						onClick={item.onSelect}
+						className={cx(
+							"omp-pressable rounded-md px-2 py-1 text-omp-sm disabled:opacity-40",
+							item.id === selected && "bg-(--omp-selected-bg) text-(--omp-accent)",
+						)}
+					>
+						{item.label}
+					</button>
+				))}
+			</div>
+		);
+	}
 	return (
-		<button
-			type="button"
-			role={menuItem ? "menuitem" : undefined}
-			aria-pressed={enabled}
-			onClick={() => void toggleFastMode()}
-			title={`${enabled ? t("input.fast.on") : t("input.fast.off")}${active ? t("input.fast.active") : ""}`}
-			className={cx(
-				"omp-pressable flex h-8 items-center gap-1.5 rounded-full px-2.5 text-omp-md font-medium hover:bg-[var(--omp-selected-bg)]",
-				menuItem && "w-full",
-				enabled ? "text-[var(--omp-accent)]" : "text-[var(--omp-muted)]",
+		<>
+			<button
+				type="button"
+				role={menuItem ? "menuitem" : undefined}
+				aria-pressed={chatGpt ? undefined : enabled}
+				aria-haspopup={chatGpt ? "menu" : undefined}
+				aria-expanded={chatGpt ? menu !== null : undefined}
+				onClick={event => {
+					if (!chatGpt) {
+						void toggleFastMode();
+						return;
+					}
+					const rect = event.currentTarget.getBoundingClientRect();
+					setMenu(menu ? null : { x: rect.left, y: rect.top - 6 });
+				}}
+				title={
+					chatGpt
+						? t("input.speed.title")
+						: `${enabled ? t("input.fast.on") : t("input.fast.off")}${active ? t("input.fast.active") : ""}`
+				}
+				className={cx(
+					"omp-pressable flex h-8 items-center gap-1.5 rounded-full px-2.5 text-omp-md font-medium hover:bg-[var(--omp-selected-bg)]",
+					menuItem && "w-full",
+					enabled ? "text-[var(--omp-accent)]" : "text-[var(--omp-muted)]",
+				)}
+			>
+				<Zap size={14} fill={active ? "currentColor" : "none"} />
+				<span className="omp-composer-control-label">
+					{chatGpt ? t(`input.speed.${selected}`) : t("input.fast.label")}
+				</span>
+				{chatGpt && <ChevronDown aria-hidden size={11} />}
+			</button>
+			{chatGpt && menu && (
+				<ContextMenu x={menu.x} y={menu.y} placement="above" items={options} onClose={() => setMenu(null)} />
 			)}
-		>
-			<Zap size={14} fill={active ? "currentColor" : "none"} />
-			<span className="omp-composer-control-label">{t("input.fast.label")}</span>
-		</button>
+		</>
 	);
 }

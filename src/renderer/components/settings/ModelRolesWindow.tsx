@@ -77,6 +77,8 @@ function RoleRow({
 }) {
 	const color = COLOR_MAP[role.color ?? "default"] ?? COLOR_MAP.default;
 	const candidates = role.candidates ?? [];
+	const image26Missing =
+		role.id === "image" && !candidates.some(candidate => candidate.id.startsWith("gpt-image-2.6-"));
 	// The backend splits the `:level` suffix off; an older sidecar without
 	// `selected` still matches unsuffixed selectors verbatim.
 	const selectedKey = role.selected ? candidateKey(role.selected) : role.model;
@@ -187,6 +189,15 @@ function RoleRow({
 				</span>
 				{candidates.length === 0 && (
 					<span className="text-omp-xs text-[var(--omp-dim)]">{t("modelRoles.noCandidates")}</span>
+				)}
+				{image26Missing && (
+					<button
+						type="button"
+						className="self-start text-left text-omp-xs text-(--omp-link) hover:underline"
+						onClick={() => useUiStore.getState().openSettings("providers")}
+					>
+						{t("modelRoles.image26Api")}
+					</button>
 				)}
 			</div>
 			<div className="relative min-w-[180px] max-w-[50%] flex-1" ref={rootRef}>

@@ -5,6 +5,7 @@
  */
 
 import { contextBridge, ipcRenderer, webUtils } from "electron";
+import type { DocumentPreviewResult } from "../shared/document-preview";
 import type {
 	ConversationSearchResponse,
 	CustomProviderInput,
@@ -477,6 +478,12 @@ const api: OmpApi = {
 			ipcRenderer.invoke(IPC_COMMANDS.FS_READ_PLAN, payload) as Promise<IpcFsReadPlanResult>,
 		readImage: (path: string, tabId?: string) =>
 			ipcRenderer.invoke(IPC_COMMANDS.FS_READ_IMAGE, { path, tabId }) as Promise<IpcFsReadImageResult>,
+		documentPreview: (path: string, thumbnail: boolean, tabId?: string) =>
+			ipcRenderer.invoke(IPC_COMMANDS.FS_DOCUMENT_PREVIEW, {
+				path,
+				thumbnail,
+				tabId,
+			}) as Promise<DocumentPreviewResult>,
 	},
 
 	pluginCatalog: {

@@ -23,7 +23,7 @@ export function useComposerFiles() {
 				continue;
 			}
 			const path = window.omp.app.pathForFile(file);
-			if (path) localFiles.push({ name: file.name, mention: droppedFileMention(path, cwd) });
+			if (path) localFiles.push({ name: file.name, path, mention: droppedFileMention(path, cwd) });
 			else unavailable = true;
 		}
 		if (localFiles.length > 0) addFiles(localFiles);

@@ -110,7 +110,7 @@ export function droppedFileMention(filePath: string, cwd: string): string {
 	const normalized = filePath.replace(/\\/g, "/");
 	const root = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
 	const relative = root && normalized.startsWith(`${root}/`) ? normalized.slice(root.length + 1) : filePath;
-	if (!/[\s@"']|^[\x60([{<]|[)\]}>.,;:!?\x60]$/.test(relative)) return `@${relative}`;
+	if (!/[\s@"']|^[\x60([{<]|[)\]}>.,;:!?\x60]$/.test(relative) && /[./\\]/.test(relative)) return `@${relative}`;
 	const quote = relative.includes('"') ? "'" : '"';
 	return `@${quote}${relative}${quote}`;
 }

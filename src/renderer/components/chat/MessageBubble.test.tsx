@@ -161,6 +161,43 @@ describe("MessageBubble tool messages", () => {
 });
 
 describe("MessageBubble user content", () => {
+	it("shows old paths as filename cards instead of raw text", () => {
+		const { document } = parseHTML(
+			renderToStaticMarkup(
+				<I18nProvider>
+					<MessageBubble
+						message={{ role: "user", content: 'Compare these @"/tmp/计划 V2.docx" @workspace/view.html' }}
+					/>
+				</I18nProvider>,
+			),
+		);
+		expect(document.body.textContent).not.toContain("@/tmp/");
+		expect(
+			[...document.querySelectorAll("[data-message-attachments] button")].map(button => button.textContent),
+		).toEqual(["计划 V2.docx", "view.html"]);
+		expect(document.querySelector(".markdown-body")?.textContent).toBe("Compare these");
+	});
+
+	it("consolidates consecutive thinking snippets without swallowing a subsequent reply", () => {
+		const html = renderToStaticMarkup(
+			<I18nProvider>
+				<MessageBubble
+					message={{
+						role: "assistant",
+						content: [
+							{ type: "thinking", thinking: "Checking the source." },
+							{ type: "thinking", thinking: "Checking the output." },
+							{ type: "text", text: "Ready to ship." },
+						],
+					}}
+				/>
+			</I18nProvider>,
+		);
+		const { document } = parseHTML(html);
+		expect(document.querySelectorAll(".omp-thinking-block")).toHaveLength(1);
+		expect(document.querySelector(".markdown-body")?.textContent).toBe("Ready to ship.");
+	});
+
 	it("shows an assistant reaction on the user bubble", () => {
 		const html = renderToStaticMarkup(
 			<I18nProvider>

@@ -21,6 +21,7 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type DocumentPage, HTML_DOCUMENT, OFFICE_DOCUMENT, TABLE_DOCUMENT } from "../../../shared/document-preview";
 import type { FileEditFailure, FsTreeEntry } from "../../../shared/ipc-types";
 import { describeError } from "../../lib/errors";
 import { basename, copyText, formatBytes } from "../../lib/format";
@@ -36,8 +37,15 @@ import { ZoomableImage } from "../common/ImageViewer";
 import { showPathMenu } from "../common/LinkMenu";
 import { type TreeNode, TreeView } from "../common/TreeView";
 import { PathLink } from "../tools/PathLink";
+import { DelimitedTable, DocumentPreview } from "./DocumentPreview";
 import { FileTabStrip } from "./FileTabStrip";
-import { EMPTY_FILE_TABS, isMarkdownFile, projectRelativeFile, useFileTabs, type WorkspaceFileTab } from "./file-tabs";
+import {
+	EMPTY_FILE_TABS,
+	hasFormattedPreview,
+	projectRelativeFile,
+	useFileTabs,
+	type WorkspaceFileTab,
+} from "./file-tabs";
 import { useWorkspaceExplorer } from "./use-workspace-explorer";
 import { setFileDraft, useFileDrafts, WorkspaceFileEditor } from "./WorkspaceFileEditor";
 import { FileLabel, PanelEmpty, PanelSearch, PanelToolbar, ToolbarIconButton } from "./workspace-ui";
@@ -56,13 +64,14 @@ interface PreviewState {
 	path: string;
 	content: string | null;
 	image: PreviewImage | null;
+	pages: DocumentPage[] | null;
 	/** What to say about the file when there is nothing of it to show. */
 	notice: { title: string; hint?: string } | null;
 	loading: boolean;
 	truncated: boolean;
 }
 
-const NOTHING_LOADED = { content: null, image: null, notice: null, loading: false, truncated: false };
+const NOTHING_LOADED = { content: null, image: null, pages: null, notice: null, loading: false, truncated: false };
 
 function expandedFolders(path: string): string[] {
 	const parts = path.split("/");
@@ -183,6 +192,17 @@ export function FilesPanel() {
 			const version = ++previewVersion.current;
 			setPreview({ ...NOTHING_LOADED, path, loading: true });
 			try {
+				if (OFFICE_DOCUMENT.test(path)) {
+					const document = await window.omp.fs.documentPreview(path, false, tabId ?? undefined);
+					if (version !== previewVersion.current) return;
+					setPreview({
+						...NOTHING_LOADED,
+						path,
+						pages: document.kind === "document" ? document.pages : null,
+						notice: document.kind === "document" ? null : { title: t("filesPanel.binary") },
+					});
+					return;
+				}
 				const result = tabId
 					? await window.omp.fs.read(path, PREVIEW_MAX_BYTES, tabId)
 					: await window.omp.fs.read(path, PREVIEW_MAX_BYTES);
@@ -310,14 +330,14 @@ export function FilesPanel() {
 	}, [directory, directories, term, expanded, onNodeClick, tabId, t]);
 
 	const activePreview = preview?.path === filePreviewPath ? preview : null;
-	const markdownFile = !!filePreviewPath && isMarkdownFile(filePreviewPath);
-	const previewIsMarkdown = markdownFile && activeTab?.view === "preview";
-	const markdownDraft = useFileDrafts(state => (previewIsMarkdown ? state.drafts.get(draftId)?.content : undefined));
+	const formattedFile = !!filePreviewPath && hasFormattedPreview(filePreviewPath);
+	const formattedPreview = formattedFile && activeTab?.view === "preview";
+	const previewDraft = useFileDrafts(state => (formattedPreview ? state.drafts.get(draftId)?.content : undefined));
 	// An SVG draws on the same terms: a link that named a line wants its source.
 	const previewImage = filePreviewLine === null || !activePreview?.content ? (activePreview?.image ?? null) : null;
-	const editing = hasDraft && !previewIsMarkdown && !previewImage;
+	const editing = hasDraft && !formattedPreview && !previewImage;
 	const wantsEditor =
-		!previewIsMarkdown &&
+		!formattedPreview &&
 		!previewImage &&
 		typeof activePreview?.content === "string" &&
 		typeof window.omp?.fs?.openEdit === "function";
@@ -348,10 +368,10 @@ export function FilesPanel() {
 	}, [draftId, filePreviewPath, tabId, wantsEditor, hasDraft]);
 	const previewLines = useMemo(() => {
 		const content = activePreview?.content;
-		if (!content || previewIsMarkdown) return 0;
+		if (!content || formattedPreview) return 0;
 		// A trailing newline ends the last line; it does not start another.
 		return content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
-	}, [activePreview?.content, previewIsMarkdown]);
+	}, [activePreview?.content, formattedPreview]);
 	const [copied, setCopied] = useState(false);
 
 	// A link that named a line (`src/a.ts:42`) lands on it: scrolled into view
@@ -387,7 +407,7 @@ export function FilesPanel() {
 					<span className="omp-file-preview-label min-w-0 flex-1 px-1 text-omp-sm font-medium">
 						<FileLabel path={filePreviewPath} />
 					</span>
-					{markdownFile && (
+					{formattedFile && (
 						<div className="omp-segmented no-drag flex shrink-0">
 							{(["source", "preview"] as const).map(view => (
 								<button
@@ -431,7 +451,7 @@ export function FilesPanel() {
 						<ExternalLinkIcon size={14} />
 					</PathLink>
 				</PanelToolbar>
-				{!previewIsMarkdown && editStatus && (
+				{!formattedPreview && editStatus && (
 					<p className="shrink-0 px-3 py-2 text-omp-sm text-(--omp-error)" role="alert" title={editStatus.detail}>
 						{t(`filesPanel.editError.${editStatus.failure}`)}
 					</p>
@@ -471,13 +491,27 @@ export function FilesPanel() {
 								contentRef={setPreviewContent}
 								onFailed={onImageFailed}
 							/>
-						) : previewIsMarkdown ? (
+						) : activePreview.pages ? (
+							<DocumentPreview
+								key={filePreviewPath}
+								title={basename(filePreviewPath)}
+								pages={activePreview.pages}
+							/>
+						) : formattedPreview && HTML_DOCUMENT.test(filePreviewPath) ? (
+							<DocumentPreview
+								key={filePreviewPath}
+								title={basename(filePreviewPath)}
+								pages={[{ html: previewDraft ?? activePreview.content ?? "" }]}
+							/>
+						) : formattedPreview && TABLE_DOCUMENT.test(filePreviewPath) ? (
+							<DelimitedTable content={previewDraft ?? activePreview.content ?? ""} path={filePreviewPath} />
+						) : formattedPreview ? (
 							<div ref={setPreviewContent} className="mx-auto max-w-3xl px-5 py-4 text-omp-md text-(--omp-text)">
 								<MarkdownRenderer
-									content={markdownDraft ?? activePreview.content ?? ""}
+									content={previewDraft ?? activePreview.content ?? ""}
 									sourcePath={filePreviewPath}
 								/>
-								{markdownDraft === undefined && activePreview.truncated && (
+								{previewDraft === undefined && activePreview.truncated && (
 									<div className="mt-3 text-omp-xs text-(--omp-dim)">
 										{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
 									</div>

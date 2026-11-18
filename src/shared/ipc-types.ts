@@ -4,6 +4,7 @@
  */
 
 import type { KeyEventLike } from "./chord";
+import type { DocumentPreviewResult } from "./document-preview";
 import type { Language } from "./languages";
 import type { LaunchProfile } from "./launch-profile";
 import type { SessionModelOverride } from "./model-restore";
@@ -275,6 +276,7 @@ export const IPC_COMMANDS = {
 	FS_READ_PLAN: "fs:read-plan",
 	/** Read an image file as a data URL for markdown <img> rendering (sniffed mime, size cap) */
 	FS_READ_IMAGE: "fs:read-image",
+	FS_DOCUMENT_PREVIEW: "fs:document-preview",
 	/** A plugin's logo (its GitHub owner's avatar) as a data URL */
 	PLUGIN_LOGO: "plugin-catalog:logo",
 	/** Preview what installing a plugin would add, from its GitHub repository */
@@ -1418,7 +1420,7 @@ export interface OmpApi {
 		discoverProviderModels(params: DiscoverProviderModelsParams): Promise<RpcResponse>;
 		setThinkingLevel(level: ThinkingLevel | "auto"): Promise<RpcResponse>;
 		cycleThinkingLevel(): Promise<RpcResponse>;
-		setFastMode(enabled: boolean): Promise<RpcResponse>;
+		setFastMode(enabled: boolean, ultrafast?: boolean): Promise<RpcResponse>;
 		setSlowMode(enabled: boolean): Promise<RpcResponse>;
 		setSteeringMode(mode: "all" | "one-at-a-time"): Promise<RpcResponse>;
 		setFollowUpMode(mode: "all" | "one-at-a-time"): Promise<RpcResponse>;
@@ -1751,6 +1753,7 @@ export interface OmpApi {
 		read(path: string, maxBytes?: number, tabId?: string): Promise<IpcFsReadResult>;
 		readPlan(payload: IpcFsReadPlanPayload): Promise<IpcFsReadPlanResult>;
 		readImage(path: string, tabId?: string): Promise<IpcFsReadImageResult>;
+		documentPreview(path: string, thumbnail: boolean, tabId?: string): Promise<DocumentPreviewResult>;
 	};
 	pluginCatalog: {
 		logo(owner: string): Promise<string | null>;

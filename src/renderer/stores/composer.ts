@@ -19,6 +19,7 @@ export interface ComposerImage {
 export interface ComposerFile {
 	name: string;
 	mention: string;
+	path?: string;
 }
 
 export function mergeComposerFiles(first: ComposerFile[], second: ComposerFile[]): ComposerFile[] {

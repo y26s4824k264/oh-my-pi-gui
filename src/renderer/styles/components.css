@@ -456,11 +456,6 @@
 	max-width: calc(var(--omp-column-workspace) + 2 * var(--omp-column-pad));
 }
 
-/* cqh follows the conversation pane above the composer, including stacked splits. */
-.omp-dock-summary {
-	max-height: max(64px, min(30cqh, 26dvh));
-}
-
 /* Surface policy card: the single content-card recipe (hairline, no fill). */
 .omp-card {
 	border: 1px solid var(--omp-border-muted);

@@ -1,7 +1,10 @@
 import { create } from "zustand";
+import { HTML_DOCUMENT, TABLE_DOCUMENT } from "../../../shared/document-preview";
 
 const ABSOLUTE_PATH = /^(?:[A-Za-z]:)?\//;
 export const isMarkdownFile = (path: string): boolean => /\.mdx?$/i.test(path);
+export const hasFormattedPreview = (path: string): boolean =>
+	isMarkdownFile(path) || HTML_DOCUMENT.test(path) || TABLE_DOCUMENT.test(path);
 
 export function projectRelativeFile(cwd: string, file: string): string | null {
 	const path = file.replace(/\\/g, "/");
@@ -58,7 +61,7 @@ export const useFileTabs = create<FileTabsStore>()(set => {
 				const id = JSON.stringify([cwd, projectRelativeFile(cwd, path) ?? path]);
 				const existing = workspace.tabs.find(tab => tab.id === id);
 				if (!existing) {
-					const view = line === null && isMarkdownFile(path) ? "preview" : "source";
+					const view = line === null && hasFormattedPreview(path) ? "preview" : "source";
 					return { activeId: id, tabs: [...workspace.tabs, { id, path, line, lineRequest: request, view }] };
 				}
 				if (line === null && workspace.activeId === id) return workspace;

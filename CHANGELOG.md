@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- Preview and open attachments from the composer or sent messages, including macOS Quick Look previews for supported Office documents.
+- Choose Standard, Fast, or Ultrafast response speed on supported ChatGPT sign-in models.
+
+### Changed
+
+- Task, plan and agent cards use the conversation's scroll area and expand with their contents.
+- Consecutive thinking summaries appear together in one expandable block.
+
+### Fixed
+
+- Sent attachments appear as file cards without exposing their full paths in the message body.
+
 ## [0.9.45] - 2026-11-18
 
 ### Added

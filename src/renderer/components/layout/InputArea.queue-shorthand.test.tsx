@@ -264,6 +264,7 @@ afterEach(async () => {
 	useSettingsStore.getState().reset();
 	useTabsStore.getState().reset();
 	useUiStore.getState().closeComposerEditor();
+	useUiStore.getState().closeFilePreview();
 	setWindowWidth(1200);
 	vi.restoreAllMocks();
 });
@@ -839,7 +840,7 @@ describe("InputArea file attachments", () => {
 });
 
 describe("InputArea pasted images", () => {
-	it("opens a pasted image in the viewer without removing it", async () => {
+	it("opens a pasted image in the right preview without removing it", async () => {
 		useComposerStore.getState().setImages([
 			{
 				content: { type: "image", data: "abc", mimeType: "image/png" },
@@ -855,8 +856,35 @@ describe("InputArea pasted images", () => {
 		await click(image);
 		await flush();
 
-		expect(document.querySelector("[data-image-viewer]")).not.toBeNull();
+		expect(useUiStore.getState().filePreviewImage?.src).toBe("data:image/png;base64,abc");
 		expect(document.querySelector('img[alt="attachment 1"]')).not.toBeNull();
 		expect(document.querySelector('button[title="Remove"]')).not.toBeNull();
+	});
+});
+
+describe("InputArea GPT sign-in speed", () => {
+	it("uses the explicit Ultrafast RPC flag for a model that advertises support", async () => {
+		await mount();
+		const setFastMode = vi.fn(async () => ok({ enabled: true, active: true, ultrafast: true }));
+		window.omp.rpc.setFastMode = setFastMode;
+		await act(async () =>
+			useModelStore.setState({
+				model: {
+					id: "gpt-6.2-sol",
+					provider: "openai-codex",
+					api: "openai-codex-responses",
+					serviceTiers: ["priority", "ultrafast"],
+				},
+			}),
+		);
+		const speed = document.querySelector('button[title="Response speed"]') as unknown as TestElement | null;
+		if (!speed) throw new Error("speed menu missing");
+		await click(speed);
+		const option = buttonWithText("Ultrafast");
+		if (!option) throw new Error("Ultrafast unavailable in fixture");
+		await click(option);
+		await flush();
+		expect(setFastMode).toHaveBeenCalledExactlyOnceWith(true, true);
+		expect(speed.textContent).toContain("Ultrafast");
 	});
 });
