@@ -213,6 +213,7 @@ export const IPC_COMMANDS = {
 	/** Open external URL */
 	SYSTEM_INFO: "system:info",
 	SYSTEM_OPEN_EXTERNAL: "system:open-external",
+	SYSTEM_FETCH_REMOTE_IMAGE: "system:fetch-remote-image",
 	/** Open a file path in the system editor (relative resolves against the workspace) */
 	SYSTEM_OPEN_PATH: "system:open-path",
 	/** Resolve paths named in replies and tool output: absolute form, file or folder, existence */
@@ -1658,6 +1659,7 @@ export interface OmpApi {
 	system: {
 		info(): Promise<SystemInfo>;
 		openExternal(url: string): Promise<void>;
+		fetchRemoteImage(url: string): Promise<string | null>;
 		/** Open a file in the system editor; relative paths resolve against the workspace. */
 		openPath(path: string): Promise<IpcOpenPathResult>;
 		/** Resolve paths like fs reads do (tab workspace for relative ones); null for paths that do not exist. */

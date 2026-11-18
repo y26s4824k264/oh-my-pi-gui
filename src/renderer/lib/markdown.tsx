@@ -271,7 +271,7 @@ function ExternalLink({ href, children }: ComponentPropsWithoutRef<"a">) {
 
 function StyledTable({ children, ...props }: ComponentPropsWithoutRef<"table">) {
 	return (
-		<div className="overflow-x-auto my-2">
+		<div className="omp-markdown-table my-2 overflow-x-auto">
 			<table {...props} className="w-full border-collapse text-omp-md">
 				{children}
 			</table>
@@ -553,12 +553,36 @@ function MarkdownImageFallback({ alt, path }: { alt: string; path?: string }) {
 	);
 }
 
-/**
- * A remote image is never fetched: the request would leak this viewer's IP and
- * reading to the host the model named. The source stays one explicit click away.
- */
+/** Markdown is inert until the viewer explicitly requests the image. */
 function RemoteMarkdownImage({ src, alt }: { src: string; alt: string }) {
 	const t = useT();
+	const [state, setState] = useState<"idle" | "loading" | "failed">("idle");
+	const [dataUrl, setDataUrl] = useState<string | null>(null);
+	const label = alt || t("chat.attachedImage");
+	const load = async () => {
+		setState("loading");
+		try {
+			const result = await window.omp.system.fetchRemoteImage(src);
+			setDataUrl(result);
+			setState(result ? "idle" : "failed");
+		} catch {
+			setState("failed");
+		}
+	};
+	if (dataUrl) {
+		return (
+			<ZoomableImage
+				src={dataUrl}
+				alt={label}
+				className={MARKDOWN_IMAGE_CLASS}
+				onError={() => {
+					setDataUrl(null);
+					setState("failed");
+				}}
+				onOpen={() => useUiStore.getState().openImagePreview(dataUrl, label)}
+			/>
+		);
+	}
 	return (
 		<span
 			title={src}
@@ -566,12 +590,19 @@ function RemoteMarkdownImage({ src, alt }: { src: string; alt: string }) {
 		>
 			<ImageOff size={13} className="shrink-0" aria-hidden />
 			<span className="truncate">{alt || t("markdown.remoteImage")}</span>
-			<WebLink
-				url={src}
-				className="shrink-0 truncate font-mono text-omp-xs text-[var(--omp-md-link)] underline decoration-[var(--omp-md-link-url)] hover:decoration-[var(--omp-md-link)]"
+			{state === "failed" && <span role="status">{t("markdown.imageFailed")}</span>}
+			<button
+				type="button"
+				className="shrink-0 text-omp-xs text-(--omp-md-link) underline underline-offset-2 disabled:no-underline"
+				disabled={state === "loading"}
+				onClick={event => {
+					event.preventDefault();
+					event.stopPropagation();
+					void load();
+				}}
 			>
-				{t("markdown.remoteImageOpen")}
-			</WebLink>
+				{t(state === "loading" ? "common.loading" : "markdown.remoteImageOpen")}
+			</button>
 		</span>
 	);
 }
@@ -628,7 +659,8 @@ function MarkdownImage({ src, alt, title, ...props }: ComponentPropsWithoutRef<"
 			/>
 		);
 	}
-	if (classified.kind === "remote") return <RemoteMarkdownImage src={classified.src} alt={altText} />;
+	if (classified.kind === "remote")
+		return <RemoteMarkdownImage key={classified.src} src={classified.src} alt={altText} />;
 	return (
 		<ZoomableImage
 			{...props}

@@ -443,7 +443,7 @@ export function UsageWindow() {
 
 	return (
 		<>
-			<Modal open={open} onClose={close} title={t("usage.title")} size="lg">
+			<Modal dockable open={open} onClose={close} title={t("usage.title")} size="lg">
 				<div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
 					<div className="flex items-center justify-between">
 						<span className="text-omp-sm font-semibold text-[var(--omp-muted)]">

@@ -225,7 +225,7 @@ export function PluginsWindow() {
 	const showFilters = plugins.length > 0;
 
 	return (
-		<Modal bodyClassName="p-0" onClose={close} open={open} size="full" title={t("plugins.title")}>
+		<Modal dockable bodyClassName="p-0" onClose={close} open={open} size="full" title={t("plugins.title")}>
 			<div className="flex h-full min-h-0 flex-col">
 				{/* The list stays mounted behind a plugin's page, so Back returns to the same scroll and filters. */}
 				<div className={cx("flex min-h-0 flex-1 flex-col", selected && "hidden")}>

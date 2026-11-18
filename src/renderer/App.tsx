@@ -91,7 +91,7 @@ import { useSettingsStore } from "./stores/settings";
 import { useTabRuntime } from "./stores/tab-runtime";
 import { cycleTab, moveActiveTab, selectTabAt, useSessionTabs, useTabsStore } from "./stores/tabs";
 import { toast } from "./stores/toast";
-import { type PanelTab, useEffectiveKeymapOverrides, useUiStore } from "./stores/ui";
+import { activeWorkspacePage, type PanelTab, useEffectiveKeymapOverrides, useUiStore } from "./stores/ui";
 import { subscribeUpdaterStatus } from "./stores/updater";
 
 // Heavy overlays code-split: they render null while closed, so they download
@@ -196,6 +196,7 @@ export function App() {
 	useEffect(() => useSchedulerStore.getState().connect(), []);
 	const sidebarVisible = useUiStore(s => s.sidebarVisible);
 	const panelVisible = useUiStore(s => s.panelVisible);
+	const workspacePage = useUiStore(activeWorkspacePage);
 	const theme = useUiStore(s => s.theme);
 	const fontSize = useUiStore(s => s.fontSize);
 	const followAgentTheme = useUiStore(s => s.followAgentTheme);
@@ -369,19 +370,6 @@ export function App() {
 	// Font changes do not participate in theme resolution.
 	useEffect(() => watchSystemTheme(theme, () => applyThemeByName("system", { persist: false })), [theme]);
 	useEffect(() => applyFontSize(fontSize), [fontSize]);
-
-	// Keep the conversation usable at the minimum window size. The inspector
-	// becomes an on-demand overlay instead of permanently squeezing the chat.
-	useEffect(() => {
-		const compact = window.matchMedia("(max-width: 1000px)");
-		const hideInspector = () => {
-			const ui = useUiStore.getState();
-			if (compact.matches && ui.panelVisible) ui.togglePanel();
-		};
-		hideInspector();
-		compact.addEventListener("change", hideInspector);
-		return () => compact.removeEventListener("change", hideInspector);
-	}, []);
 
 	// Handle omp:// deep links (omp://new → new session; omp://session/<id> → switch).
 	useEffect(() => {
@@ -849,10 +837,39 @@ export function App() {
 	}, [lang, setLang, t]);
 
 	const focusedRuntime = useTabRuntime(activeTabId);
+	const workspace = workspacePage
+		? {
+				activeToolsOpen: <ActiveToolsDialog />,
+				agentHubOpen: <AgentHubWindow open={agentHubOpen} onClose={closeAgentHub} initialTab={agentHubTab} />,
+				changelogOpen: <ChangelogDialog />,
+				contextReportOpen: <ContextReportDialog />,
+				debugOpen: <DebugConsoleDialog />,
+				extensionsOpen: (
+					<ExtensionsPanel open={extensionsOpen} onClose={closeExtensions} initialTab={extensionsTab} />
+				),
+				hotkeysOpen: <HotkeysDialog open={hotkeysOpen} />,
+				inventoryOpen: <InventoryPanel open={inventoryOpen} onClose={closeInventory} initialTab={inventoryTab} />,
+				jobsOpen: <JobsDialog />,
+				logsOpen: <LogsDialog />,
+				memoryOpen: <MemoryWindow />,
+				modelCompareOpen: <ModelCompare open={modelCompareOpen} onClose={closeModelCompare} />,
+				modelRolesOpen: <ModelRolesWindow />,
+				modesOpen: <ModesPanel open={modesOpen} onClose={closeModes} initialTab={modesTab} />,
+				pluginsOpen: <PluginsWindow />,
+				prCenterOpen: <PrCenterWindow />,
+				providersOpen: <ProvidersWindow />,
+				sessionInfoOpen: <SessionInfoDialog />,
+				sessionTreeOpen: <SessionTreeDialog />,
+				statsDashboardOpen: <StatsDashboard open={statsDashboardOpen} onClose={closeStatsDashboard} />,
+				tasks: <TasksWindow />,
+				usageOpen: <UsageWindow />,
+				workspaceDirsOpen: <WorkspaceDirsDialog />,
+			}[workspacePage]
+		: null;
 	const surface = (
 		<div
 			className="flex h-screen w-screen overflow-hidden text-[var(--omp-text)]"
-			data-inspector={panelVisible ? "open" : "closed"}
+			data-inspector={panelVisible || workspace ? "open" : "closed"}
 			data-sidebar={sidebarVisible ? "open" : "closed"}
 		>
 			{focusedRuntime && <FocusedSessionEffects />}
@@ -869,7 +886,13 @@ export function App() {
 				<SplitWorkspace />
 			</main>
 
-			{panelVisible && <PanelContainer />}
+			{(panelVisible || workspace) && (
+				<PanelContainer
+					key={workspace ? "workspace" : "review"}
+					workspace={workspace}
+					workspaceKey={workspacePage ?? undefined}
+				/>
+			)}
 
 			<CommandPalette />
 			<ExtensionDialog />
@@ -885,36 +908,15 @@ export function App() {
 			<BranchPickerDialog />
 			<BtwDialog />
 			<CollabDialog />
-			<DebugConsoleDialog />
-			<LogsDialog />
 			<LiveVoiceDialog />
 			<CopySelectorDialog />
-			<ContextReportDialog />
-			<ActiveToolsDialog />
 			<ShareSessionDialog />
-			<JobsDialog />
-			<ChangelogDialog />
-			<WorkspaceDirsDialog />
 			<ForceToolDialog />
-			<SessionTreeDialog />
-			<SessionInfoDialog />
 			<HandoffDialog />
 			<Suspense fallback={null}>
 				<SettingsWindow />
-				<UsageWindow />
-				<ProvidersWindow />
-				<ModelRolesWindow />
-				<ModelCompare open={modelCompareOpen} onClose={closeModelCompare} />
 				<BenchmarkDialog open={benchmarkOpen} onClose={closeBenchmark} />
-				<ExtensionsPanel open={extensionsOpen} onClose={closeExtensions} initialTab={extensionsTab} />
-				<InventoryPanel open={inventoryOpen} onClose={closeInventory} initialTab={inventoryTab} />
-				<ModesPanel open={modesOpen} onClose={closeModes} initialTab={modesTab} />
-				<AgentHubWindow open={agentHubOpen} onClose={closeAgentHub} initialTab={agentHubTab} />
-				<PrCenterWindow />
-				<PluginsWindow />
-				<TasksWindow />
 				<TaskEditorDialog />
-				<MemoryWindow />
 				<ConversationSearchDialog />
 				<ProviderConfigDialog
 					open={providerConfigOpen}
@@ -925,13 +927,9 @@ export function App() {
 			<ThemePickerDialog />
 			<ThemeEditorDialog />
 			<PlanApprovalDialog />
-			<HotkeysDialog open={hotkeysOpen} />
 			{importDialogOpen && <ImportForeignDialog />}
 			{composerEditorOpen && <ComposerEditorDialog />}
-			<Suspense fallback={null}>
-				<StatsDashboard open={statsDashboardOpen} onClose={closeStatsDashboard} />
-				{feedbackOpen && <FeedbackDialog />}
-			</Suspense>
+			<Suspense fallback={null}>{feedbackOpen && <FeedbackDialog />}</Suspense>
 			<ToastStack />
 			<AgentHoverCardLayer />
 		</div>

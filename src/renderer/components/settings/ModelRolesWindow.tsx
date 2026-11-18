@@ -418,7 +418,7 @@ export function ModelRolesWindow() {
 	};
 
 	return (
-		<Modal open={open} onClose={close} title={t("modelRoles.title")} size="lg">
+		<Modal dockable open={open} onClose={close} title={t("modelRoles.title")} size="lg">
 			<div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
 				<div className="flex items-center justify-between">
 					<span className="omp-section-label">{t("modelRoles.header")}</span>

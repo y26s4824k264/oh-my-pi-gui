@@ -528,7 +528,7 @@ describe("Sidebar menus and pinned ordering", () => {
 		expect(labels.some(label => label.includes("New agent session here"))).toBe(true);
 		expect(labels.some(label => label.includes("New chat session here"))).toBe(false);
 		expect(labels.some(label => label.includes("New worktree tab here"))).toBe(true);
-		expect(labels.some(label => label.includes("Rename"))).toBe(true);
+		expect(labels.some(label => label.includes("Edit project"))).toBe(true);
 		expect(labels.some(label => label.includes("Select sessions"))).toBe(true);
 		expect(labels.some(label => label.includes("Pin to top"))).toBe(true);
 		expect(labels.some(label => label.includes("Delete"))).toBe(true);
@@ -740,15 +740,19 @@ describe("Sidebar menus and pinned ordering", () => {
 		);
 	});
 
-	it("workspace rows expose a hover action that creates an agent tab in that workspace", async () => {
+	it("workspace rows expose one menu and can create an agent tab from it", async () => {
 		const omp = installMockOmp(LIST);
 		seedStores();
 		await mount(<Sidebar />);
 
 		const header = container.querySelector('[data-workspace-group="/work/alpha"]') as unknown as Element;
-		const add = header.querySelector('[aria-label="New agent session here"]');
-		expect(add).not.toBeNull();
-		await fire(add, "onClick");
+		expect(header.querySelectorAll('button[aria-haspopup="menu"]')).toHaveLength(1);
+		expect(header.querySelector('[aria-label="New agent session here"]')).toBeNull();
+		await fire(header, "onContextMenu");
+		const add = [...document.querySelectorAll('[role="menuitem"]')].find(item =>
+			item.textContent?.includes("New agent session here"),
+		);
+		await fire(add ?? null, "onClick");
 		expect(omp.tabs.spawn).toHaveBeenCalledWith({
 			cwd: "/work/alpha",
 			kind: "agent",

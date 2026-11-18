@@ -348,7 +348,7 @@ export function FilesPanel() {
 
 	const hasPreview = Boolean(filePreviewPath || filePreviewImage);
 	const previewPane = filePreviewPath ? (
-		<section className="flex min-h-0 flex-col">
+		<section className="flex min-h-0 min-w-0 flex-col">
 			<PanelToolbar className="gap-1 border-b border-(--omp-border-muted) pl-1.5">
 				<ToolbarIconButton label={t("filesPanel.back")} onClick={closeFilePreview}>
 					<X size={14} />
@@ -459,7 +459,7 @@ export function FilesPanel() {
 			</div>
 		</section>
 	) : filePreviewImage ? (
-		<section className="flex min-h-0 flex-col">
+		<section className="flex min-h-0 min-w-0 flex-col">
 			<PanelToolbar className="gap-1 border-b border-(--omp-border-muted)">
 				<ToolbarIconButton label={t("filesPanel.back")} onClick={closeFilePreview}>
 					<X size={14} />
@@ -483,12 +483,12 @@ export function FilesPanel() {
 			className="grid h-full min-h-0"
 			ref={panelRef}
 			style={{
-				gridTemplateRows: hasPreview
-					? `minmax(4rem, ${treeShare}fr) 5px minmax(0, ${100 - treeShare}fr)`
+				gridTemplateColumns: hasPreview
+					? `minmax(7rem, ${treeShare}fr) 5px minmax(0, ${100 - treeShare}fr)`
 					: "minmax(0, 1fr)",
 			}}
 		>
-			<section className="flex min-h-0 flex-col">
+			<section className="flex min-h-0 min-w-0 flex-col">
 				<span className="sr-only">{t("filesPanel.title")}</span>
 				<PanelToolbar>
 					<PanelSearch
@@ -543,18 +543,18 @@ export function FilesPanel() {
 			</section>
 			{hasPreview && (
 				<div
-					aria-label={t("split.resize")}
-					aria-orientation="horizontal"
+					aria-label={t("filesPanel.resize")}
+					aria-orientation="vertical"
 					aria-valuemin={17}
 					aria-valuemax={74}
 					aria-valuenow={treeShare}
-					className="z-10 cursor-row-resize touch-none border-y border-(--omp-border-muted) bg-(--omp-bg-tertiary) hover:bg-(--omp-accent) focus-visible:bg-(--omp-accent)"
+					className="z-10 cursor-col-resize touch-none border-x border-(--omp-border-muted) bg-(--omp-bg-tertiary) hover:bg-(--omp-accent) focus-visible:bg-(--omp-accent)"
 					role="separator"
 					tabIndex={0}
 					onKeyDown={event => {
-						if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+						if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
 						event.preventDefault();
-						resizeTree(treeShare + (event.key === "ArrowUp" ? -5 : 5));
+						resizeTree(treeShare + (event.key === "ArrowLeft" ? -5 : 5));
 					}}
 					onPointerDown={event => {
 						resizing.current = true;
@@ -562,8 +562,8 @@ export function FilesPanel() {
 					}}
 					onPointerMove={event => {
 						const bounds = panelRef.current?.getBoundingClientRect();
-						if (resizing.current && bounds?.height)
-							resizeTree(((event.clientY - bounds.top) / bounds.height) * 100);
+						if (resizing.current && bounds?.width)
+							resizeTree(((event.clientX - bounds.left) / bounds.width) * 100);
 					}}
 					onLostPointerCapture={() => {
 						resizing.current = false;

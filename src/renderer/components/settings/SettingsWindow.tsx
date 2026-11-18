@@ -22,25 +22,27 @@ import { useTabRpc } from "../../lib/tab-rpc";
 
 import {
 	AlertTriangle,
+	ArrowLeft,
 	Blocks,
 	BookOpen,
 	Braces,
-	ChevronDown,
-	ChevronRight,
+	Cpu,
+	Folder,
 	HardDriveDownload,
 	Keyboard,
 	Network,
 	RefreshCw,
+	RotateCcw,
 	RotateCw,
 	Search,
 	Server,
 	ShieldCheck,
 	SlidersHorizontal,
 	Sparkles,
+	SquareTerminal,
 	Webhook,
-	X,
 } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
 	flagsToCommandLine,
@@ -92,7 +94,12 @@ import { ShortcutsSettingsPage } from "./ShortcutsSettingsPage";
 import { SkillsSettingsPage } from "./SkillsSettingsPage";
 import { SshSettingsPage } from "./SshSettingsPage";
 import { settingTranslation } from "./schema-localization";
-import { isSettingVisibleInGui, matchesSettingSearch, resolveSettingsTarget } from "./settings-schema-utils";
+import {
+	GENERAL_SCHEMA_TABS,
+	isSettingVisibleInGui,
+	matchesSettingSearch,
+	resolveSettingsTarget,
+} from "./settings-schema-utils";
 import {
 	ADVANCED_TAB_ID,
 	buildSettingsNavGroups,
@@ -111,7 +118,6 @@ import {
 	MCP_TAB_ID,
 	RESOURCES_TAB_ID,
 	SECURITY_TAB_ID,
-	type SettingsNavGroup,
 	type SettingsResponseData,
 	SHORTCUTS_TAB_ID,
 	SKILLS_TAB_ID,
@@ -119,6 +125,23 @@ import {
 	UPDATES_TAB_ID,
 } from "./settings-window-model";
 import { UpdatesSettingsPage } from "./UpdatesSettingsPage";
+
+const SETTINGS_NAV_ICONS: Record<string, typeof SlidersHorizontal> = {
+	[CAPABILITIES_TAB_ID]: Sparkles,
+	[SKILLS_TAB_ID]: BookOpen,
+	[MCP_TAB_ID]: Network,
+	[RESOURCES_TAB_ID]: Blocks,
+	[HOOKS_TAB_ID]: Webhook,
+	[COMMANDS_TAB_ID]: Braces,
+	[SECURITY_TAB_ID]: ShieldCheck,
+	[SSH_TAB_ID]: Server,
+	[UPDATES_TAB_ID]: HardDriveDownload,
+	[SHORTCUTS_TAB_ID]: Keyboard,
+	model: Cpu,
+	providers: Network,
+	files: Folder,
+	shell: SquareTerminal,
+};
 
 /** One GUI display switch; a row that overrides the Agent setting offers to inherit it again. */
 function DisplayPreferenceRow({ field }: { field: (typeof GUI_DISPLAY_BOOL_FIELDS)[number] }) {
@@ -133,8 +156,8 @@ function DisplayPreferenceRow({ field }: { field: (typeof GUI_DISPLAY_BOOL_FIELD
 		return saved;
 	};
 	return (
-		<div id={`setting-gui-${field}`} className="flex items-center gap-3">
-			<div className="flex-1">
+		<div id={`setting-gui-${field}`} className="relative flex items-center pr-8">
+			<div className="min-w-0 flex-1">
 				<Toggle
 					className="omp-settings-row"
 					label={t(`settings.display.${field}`)}
@@ -147,8 +170,16 @@ function DisplayPreferenceRow({ field }: { field: (typeof GUI_DISPLAY_BOOL_FIELD
 				/>
 			</div>
 			{overridden && (
-				<Button size="sm" variant="ghost" disabled={saving} onClick={() => void save(null)}>
-					{t("settings.display.inherit")}
+				<Button
+					aria-label={t("settings.display.inherit")}
+					title={t("settings.display.inherit")}
+					className="absolute right-0 w-7 !px-0"
+					size="sm"
+					variant="ghost"
+					disabled={saving}
+					onClick={() => void save(null)}
+				>
+					<RotateCcw aria-hidden="true" size={14} />
 				</Button>
 			)}
 		</div>
@@ -458,11 +489,13 @@ export function SettingsWindow() {
 		};
 	}, [open, tabRpc.getSettings]);
 
-	const navGroups = useMemo<SettingsNavGroup[]>(() => buildSettingsNavGroups(schema), [schema]);
-	const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(() => new Set());
-	/** The active page's group is always open; others stay open once opened. */
-	const isGroupOpen = (group: SettingsNavGroup) =>
-		openGroups.has(group.id) || group.items.some(item => item.id === tab);
+	const navItems = useMemo(() => buildSettingsNavGroups(schema).flatMap(group => group.items), [schema]);
+	const activeNavRef = useRef<HTMLButtonElement>(null);
+	useLayoutEffect(() => {
+		if (open && navItems.some(item => item.id === tab)) {
+			activeNavRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+		}
+	}, [open, tab, navItems]);
 	// Load the persisted proxy pref each time the window opens.
 	useEffect(() => {
 		if (!open) return;
@@ -688,8 +721,11 @@ export function SettingsWindow() {
 		return suffix === "" ? "omp --mode rpc-ui" : `omp --mode rpc-ui ${suffix}`;
 	}, [launchProfile, launchDrafts]);
 
-	const isSchemaTab = schema?.tabs.some(schemaTab => schemaTab.id === tab) === true;
-	const isAgentSettingsTab = isAgentSchemaTab(tab, schema);
+	const general = tab === GUI_TAB_ID;
+	const schemaTabs = schema?.tabs.filter(schemaTab =>
+		general ? GENERAL_SCHEMA_TABS.has(schemaTab.id) : schemaTab.id === tab,
+	);
+	const showsSchemaSettings = general || isAgentSchemaTab(tab, schema);
 	const managementTab = MANAGEMENT_TAB_IDS.has(tab);
 	const wideTab = managementTab || tab === CAPABILITIES_TAB_ID;
 	const showGlobalSearch = true;
@@ -720,7 +756,7 @@ export function SettingsWindow() {
 		});
 		const byTab = new Map<string, SettingEntry[]>();
 		for (const entry of matches) {
-			const key = entry.tab ?? "advanced";
+			const key = resolveSettingsTarget(entry.tab ?? ADVANCED_TAB_ID).tab;
 			const list = byTab.get(key) ?? [];
 			list.push(entry);
 			byTab.set(key, list);
@@ -767,7 +803,7 @@ export function SettingsWindow() {
 		if (!open) return;
 		const unregisterLayer = registerDialogLayer(dialogRef.current);
 		restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-		const first = dialogRef.current?.querySelector<HTMLElement>("input, button, select, textarea, [tabindex]");
+		const first = searchInputRef.current ?? dialogRef.current?.querySelector<HTMLElement>("button");
 		first?.focus();
 		return () => {
 			const wasTopmost = isTopmostDialog(dialogRef.current);
@@ -1036,6 +1072,14 @@ export function SettingsWindow() {
 				>
 					<div aria-hidden className="omp-window-caption drag-region" />
 					<div className="px-3 pb-3 pt-2">
+						<button
+							className="no-drag mb-2 flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-omp-sm text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text)"
+							onClick={close}
+							type="button"
+						>
+							<ArrowLeft aria-hidden="true" size={15} />
+							{t("settings.backToChat")}
+						</button>
 						<div className="mb-2 px-2 text-omp-lg font-semibold">{t("settings.title")}</div>
 						{showGlobalSearch && (
 							<div className="no-drag relative min-w-0">
@@ -1055,88 +1099,30 @@ export function SettingsWindow() {
 							</div>
 						)}
 					</div>
-					<div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
-						{navGroups.map((group, groupIndex) => (
-							<section className={groupIndex === 0 ? "" : "settings-nav-group mt-1.5"} key={group.id}>
+					<div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
+						{navItems.map(item => {
+							const active = item.id === tab;
+							const Icon = SETTINGS_NAV_ICONS[item.id] ?? SlidersHorizontal;
+							const title = tabTitle(item);
+							return (
 								<button
-									type="button"
-									aria-expanded={isGroupOpen(group)}
-									className="settings-nav-group-label flex w-full items-center gap-1.5 rounded-md px-2.5 py-2 text-left text-omp-sm font-medium text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text)"
+									aria-current={active ? "page" : undefined}
+									className="settings-nav-item flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-omp-md text-(--omp-muted) transition-colors hover:bg-(--omp-bg-tertiary) hover:text-(--omp-text)"
+									key={item.id}
 									onClick={() => {
-										// Opening a group shows its first page; a group stays open until its
-										// own header closes it, so several groups can be read side by side.
-										if (isGroupOpen(group) && !group.items.some(item => item.id === tab)) {
-											setOpenGroups(prev => {
-												const next = new Set(prev);
-												next.delete(group.id);
-												return next;
-											});
-											return;
-										}
-										const current = navGroups.find(candidate =>
-											candidate.items.some(item => item.id === tab),
-										);
-										setOpenGroups(prev => {
-											const next = new Set(prev).add(group.id);
-											if (current) next.add(current.id);
-											return next;
-										});
-										setTab(group.items[0].id);
+										setTab(item.id);
 										setQuery("");
 										setFocusedSetting(null);
 									}}
+									ref={active ? activeNavRef : undefined}
+									title={title}
+									type="button"
 								>
-									{isGroupOpen(group) ? (
-										<ChevronDown aria-hidden="true" className="shrink-0 text-(--omp-dim)" size={13} />
-									) : (
-										<ChevronRight aria-hidden="true" className="shrink-0 text-(--omp-dim)" size={13} />
-									)}
-									<span className="min-w-0 truncate">{t(`settings.nav.${group.id}`)}</span>
+									<Icon aria-hidden="true" className="shrink-0" size={15} />
+									<span className="settings-nav-label min-w-0 truncate">{title}</span>
 								</button>
-								{isGroupOpen(group) &&
-									group.items.map(tb => {
-										const active = tb.id === tab;
-										return (
-											<button
-												aria-current={active ? "page" : undefined}
-												className={`settings-nav-item flex w-full items-center gap-2 rounded-md py-1.5 pl-5 pr-2 text-left text-omp-md transition-colors ${
-													active
-														? "bg-(--omp-selected-bg) font-medium text-(--omp-text)"
-														: "text-(--omp-muted) hover:bg-(--omp-bg-tertiary) hover:text-(--omp-text)"
-												}`}
-												key={tb.id}
-												onClick={() => {
-													setTab(tb.id);
-													setQuery("");
-													setFocusedSetting(null);
-												}}
-												title={tabTitle(tb)}
-												type="button"
-											>
-												<span className="flex size-4 shrink-0 items-center justify-center text-(--omp-dim)">
-													{tb.id === CAPABILITIES_TAB_ID && <Sparkles aria-hidden="true" size={13} />}
-													{tb.id === SKILLS_TAB_ID && <BookOpen aria-hidden="true" size={13} />}
-													{tb.id === MCP_TAB_ID && <Network aria-hidden="true" size={13} />}
-													{tb.id === RESOURCES_TAB_ID && <Blocks aria-hidden="true" size={13} />}
-													{tb.id === HOOKS_TAB_ID && <Webhook aria-hidden="true" size={13} />}
-													{tb.id === COMMANDS_TAB_ID && <Braces aria-hidden="true" size={13} />}
-													{tb.id === SECURITY_TAB_ID && <ShieldCheck aria-hidden="true" size={13} />}
-													{tb.id === SSH_TAB_ID && <Server aria-hidden="true" size={13} />}
-													{tb.id === UPDATES_TAB_ID && <HardDriveDownload aria-hidden="true" size={13} />}
-													{tb.id === SHORTCUTS_TAB_ID && <Keyboard aria-hidden="true" size={13} />}
-													{!MANAGEMENT_TAB_IDS.has(tb.id) &&
-														tb.id !== CAPABILITIES_TAB_ID &&
-														tb.id !== SHORTCUTS_TAB_ID &&
-														tb.id !== UPDATES_TAB_ID && (
-															<SlidersHorizontal aria-hidden="true" size={13} />
-														)}
-												</span>
-												<span className="settings-nav-label min-w-0 truncate">{tabTitle(tb)}</span>
-											</button>
-										);
-									})}
-							</section>
-						))}
+							);
+						})}
 					</div>
 				</nav>
 				<main className="settings-main-canvas flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -1151,14 +1137,6 @@ export function SettingsWindow() {
 								{tabTitle({ id: tab, label: tab })}
 							</h1>
 						</div>
-						<button
-							aria-label={t("settings.close")}
-							className="no-drag flex h-8 w-8 items-center justify-center rounded-lg text-(--omp-muted) transition-colors hover:bg-(--omp-bg-tertiary) hover:text-(--omp-text)"
-							onClick={close}
-							type="button"
-						>
-							<X size={16} />
-						</button>
 					</header>
 					{/* The scroller spans the whole canvas so its bar sits at the window edge;
 					    the page inside shares the header's column, so every page title and
@@ -1180,7 +1158,7 @@ export function SettingsWindow() {
 									fillsHeight && "flex min-h-0 flex-1 flex-col",
 								)}
 							>
-								{!sidecarReady && isAgentSettingsTab && (
+								{!sidecarReady && showsSchemaSettings && (
 									<SettingsConnectionNotice
 										busy={sidecarBusy}
 										error={sidecarError}
@@ -1719,7 +1697,7 @@ export function SettingsWindow() {
 											</>
 										)}
 
-										{isAgentSettingsTab && sidecarReady && loadState === "loading" && (
+										{showsSchemaSettings && sidecarReady && loadState === "loading" && (
 											<div className="flex items-center justify-center gap-2 py-10">
 												<Spinner size="sm" />
 												<span className="text-omp-xs text-(--omp-muted)">
@@ -1727,7 +1705,7 @@ export function SettingsWindow() {
 												</span>
 											</div>
 										)}
-										{isAgentSettingsTab && sidecarReady && loadState === "error" && (
+										{showsSchemaSettings && sidecarReady && loadState === "error" && (
 											<div className="flex flex-col items-center gap-3 py-10">
 												<span className="text-omp-xs text-(--omp-error)">
 													{loadError ?? t("settings.schemaLoadFailed")}
@@ -1745,15 +1723,23 @@ export function SettingsWindow() {
 												</Button>
 											</div>
 										)}
-										{loadState === "ready" && sidecarReady && schema && isSchemaTab && (
-											<SchemaTabContent
-												entries={schema.entries}
-												groups={schema.tabs.find(schemaTab => schemaTab.id === tab)?.groups ?? []}
-												onCommitted={handleCommitted}
-												tabId={tab}
-												values={values}
-											/>
-										)}
+										{loadState === "ready" &&
+											sidecarReady &&
+											schema &&
+											schemaTabs?.map(schemaTab => (
+												<Fragment key={schemaTab.id}>
+													{general && (
+														<h2 className="mt-7 mb-3 text-omp-xl font-semibold">{tabTitle(schemaTab)}</h2>
+													)}
+													<SchemaTabContent
+														entries={schema.entries}
+														groups={schemaTab.groups ?? []}
+														onCommitted={handleCommitted}
+														tabId={schemaTab.id}
+														values={values}
+													/>
+												</Fragment>
+											))}
 										{loadState === "ready" && sidecarReady && schema && tab === ADVANCED_TAB_ID && (
 											<AdvancedTab entries={schema.entries} onCommitted={handleCommitted} values={values} />
 										)}
@@ -1803,11 +1789,8 @@ export function SettingsWindow() {
 									</>
 								)}
 								{!managementTab && (
-									<div className="mt-8 flex items-center justify-between gap-2 border-t border-(--omp-border-muted) pt-4">
+									<div className="mt-8 border-t border-(--omp-border-muted) pt-4">
 										<span className="text-omp-sm text-(--omp-dim)">{t("settings.applyImmediately")}</span>
-										<Button onClick={close} type="button" variant="primary">
-											{t("settings.close")}
-										</Button>
 									</div>
 								)}
 							</div>

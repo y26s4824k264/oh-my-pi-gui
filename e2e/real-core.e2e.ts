@@ -1,9 +1,12 @@
+import { once } from "node:events";
 import * as fs from "node:fs/promises";
+import { createServer } from "node:http";
 import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, test } from "@playwright/test";
 import { _electron as electron } from "playwright";
+import { IPC_EVENTS } from "../src/shared/ipc-types";
 import type { RpcSessionState } from "../src/shared/rpc-types";
 
 test("real bundled sidecar persists settings and sessions and serves every stats route", async () => {
@@ -24,19 +27,17 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		}),
 	);
 	await fs.mkdir(path.join(project, "docs"));
+	const png = Buffer.from(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aYSsAAAAASUVORK5CYII=",
+		"base64",
+	);
 	await Promise.all([
 		fs.writeFile(
 			path.join(project, "docs", "README.md"),
 			"# Local ARM audit\n\nRead ./notes.txt:2.\n\n![Diagram](diagram.png)\n",
 		),
 		fs.writeFile(path.join(project, "docs", "notes.txt"), "line one\nmarked line\n"),
-		fs.writeFile(
-			path.join(project, "docs", "diagram.png"),
-			Buffer.from(
-				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aYSsAAAAASUVORK5CYII=",
-				"base64",
-			),
-		),
+		fs.writeFile(path.join(project, "docs", "diagram.png"), png),
 	]);
 	const attachmentName = "floor plan.ifc";
 	const attachmentPath = path.join(project, attachmentName);
@@ -63,6 +64,11 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 	app.process().stderr?.on("data", (chunk: Buffer) => mainOutput.push(chunk.toString()));
 	const page = await app.firstWindow();
 	const errors: string[] = [];
+	let imageRequests = 0;
+	const imageServer = createServer((_request, response) => {
+		imageRequests++;
+		response.writeHead(200, { "Content-Type": "image/png" }).end(png);
+	});
 	page.on("pageerror", error => errors.push(error.message));
 	const closeWelcome = async (title: string | RegExp, closeLabel: string | RegExp) => {
 		const welcome = page.getByRole("dialog", { name: title, exact: true });
@@ -125,6 +131,12 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await readme.click();
 		await expect(preview.getByRole("heading", { name: "Local ARM audit" })).toBeVisible();
 		await expect(tree).toBeVisible();
+		const [treeBounds, previewBounds] = await Promise.all([tree.boundingBox(), preview.boundingBox()]);
+		expect(previewBounds?.x ?? 0).toBeGreaterThan((treeBounds?.x ?? 0) + (treeBounds?.width ?? 0));
+		const treeDivider = page.getByRole("separator", { name: "Resize file tree" });
+		const originalTreeWidth = await treeDivider.getAttribute("aria-valuenow");
+		await treeDivider.press("ArrowRight");
+		await expect(treeDivider).not.toHaveAttribute("aria-valuenow", originalTreeWidth ?? "");
 		await preview.getByRole("link", { name: "./notes.txt:2" }).click();
 		await expect(preview).toContainText("marked line");
 		await expect(tree.getByText("notes.txt", { exact: true })).toBeVisible();
@@ -132,6 +144,78 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await preview.getByRole("button", { name: "Diagram", exact: true }).click();
 		await expect(preview.locator('img[alt="diagram.png"]')).toBeVisible();
 		await expect(tree).toBeVisible();
+		const rightPanel = page.locator(".omp-inspector");
+		const resizeHandle = page.getByRole("separator", { name: "Resize right panel" });
+		const viewportWidth = await page.evaluate(() => window.innerWidth);
+		const handle = await resizeHandle.boundingBox();
+		if (!handle) throw new Error("Missing the right panel resize handle");
+		const handleY = handle.y + handle.height / 2;
+		await page.mouse.move(handle.x + handle.width / 2, handleY);
+		await page.mouse.down();
+		await page.mouse.move(0, handleY, { steps: 10 });
+		await page.mouse.up();
+		await expect(rightPanel).toHaveCSS("width", `${viewportWidth}px`);
+		await expect.poll(async () => (await rightPanel.boundingBox())?.x).toBe(0);
+		await expect(tree).toBeVisible();
+		await expect(preview).toBeVisible();
+		await page.mouse.move(3, handleY);
+		await page.mouse.down();
+		await page.mouse.move(viewportWidth - 460, handleY, { steps: 10 });
+		await page.mouse.up();
+		await expect(rightPanel).toHaveCSS("width", "460px");
+		await page.getByRole("button", { name: "Close panel" }).click();
+
+		// Deliver a deterministic reply through the regular renderer event route.
+		await once(imageServer.listen(0, "127.0.0.1"), "listening");
+		const imageAddress = imageServer.address();
+		if (!imageAddress || typeof imageAddress === "string") throw new Error("Image fixture has no port");
+		const tabId = await page.evaluate(async () => (await window.omp.tabs.list()).find(tab => tab.active)?.tabId);
+		expect(tabId).toBeTruthy();
+		await app.evaluate(
+			({ BrowserWindow }, input) => {
+				BrowserWindow.getAllWindows()[0]?.webContents.send(input.channel, {
+					tabId: input.tabId,
+					payload: [
+						{
+							type: "message_end",
+							message: {
+								role: "assistant",
+								timestamp: Date.now(),
+								stopReason: "stop",
+								content: [{ type: "text", text: input.markdown }],
+							},
+						},
+					],
+				});
+			},
+			{
+				channel: IPC_EVENTS.EVENTS_BATCH,
+				tabId,
+				markdown: [
+					"## Drawing review",
+					"Check the units before handing off the file.",
+					"| Field | Value |\n| --- | --- |\n| Length | 250 mm |",
+					"```ts\nconst length = 250;\n```",
+					`![Remote drawing](http://127.0.0.1:${imageAddress.port}/diagram.png)`,
+				].join("\n\n"),
+			},
+		);
+		const transcript = page.locator(".omp-transcript-scroll");
+		await expect(transcript.getByRole("heading", { name: "Drawing review" })).toBeVisible();
+		await expect(transcript.getByRole("cell", { name: "250 mm" })).toBeVisible();
+		await expect(transcript.locator("pre")).toContainText("const length = 250;");
+		const loadImage = transcript.getByRole("button", { name: "Load image", exact: true });
+		await expect(loadImage).toBeVisible();
+		expect(imageRequests).toBe(0);
+		await loadImage.click();
+		const remoteImage = transcript.getByRole("button", { name: "Remote drawing", exact: true });
+		await expect(remoteImage).toBeVisible();
+		await expect(remoteImage).toHaveJSProperty("naturalWidth", 1);
+		await page.screenshot({ path: "test-results/conversation-layout.png", scale: "css", animations: "disabled" });
+		expect(imageRequests).toBe(1);
+		await remoteImage.click();
+		await expect(preview.locator('img[alt="Remote drawing"]')).toBeVisible();
+		expect(imageRequests).toBe(1);
 		await page.getByRole("button", { name: "Close panel" }).click();
 
 		// Drive the real Add Project action with a deterministic native-picker result.
@@ -145,14 +229,33 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await page.getByRole("button", { name: "Add project…", exact: true }).click();
 		const projectRow = page.locator("[data-workspace-group]").filter({ hasText: "drawing-folder" });
 		await expect(projectRow).toBeVisible();
-		await projectRow.click({ button: "right" });
-		await page.getByRole("menuitem", { name: "Rename project", exact: true }).click();
-		const alias = page.locator("[data-workspace-group] input");
+		await projectRow.hover();
+		await projectRow.getByRole("button", { name: "Workspace actions", exact: true }).click();
+		await page.getByRole("menuitem", { name: "Edit project", exact: true }).click();
+		const editProject = page.getByRole("dialog", { name: "Edit project", exact: true });
+		await expect(editProject).toContainText(addedProject);
+		const alias = editProject.getByRole("textbox", { name: "Display name" });
 		await expect(alias).toHaveValue("drawing-folder");
 		await alias.fill("Delivery drawings");
-		await alias.press("Enter");
+		await editProject.getByRole("textbox", { name: /Project instructions/ }).fill("Use millimetres in drawings.");
+		await editProject.getByRole("button", { name: "Save", exact: true }).click();
+		await expect(editProject).toHaveCount(0);
 		await expect(page.locator("[data-workspace-group]").filter({ hasText: "Delivery drawings" })).toBeVisible();
+		const profiles = await page.evaluate(() => window.omp.prefs.get("launchProfiles"));
+		expect(profiles).toMatchObject({ [addedProject]: { appendSystemPrompt: "Use millimetres in drawings." } });
 		expect((await fs.stat(addedProject)).isDirectory()).toBe(true);
+
+		await page.getByRole("button", { name: /^Scheduled tasks/i }).click();
+		const tasksPane = page.locator(".omp-inspector").getByRole("region", { name: "Scheduled Tasks", exact: true });
+		await expect(tasksPane).toBeVisible();
+		await expect(composer).toBeVisible();
+		await expect(page.getByRole("dialog")).toHaveCount(0);
+		await page.getByRole("button", { name: "Plugins", exact: true }).click();
+		const pluginsPane = page.locator(".omp-inspector").getByRole("region", { name: "Plugins", exact: true });
+		await expect(pluginsPane).toBeVisible();
+		await expect(tasksPane).toHaveCount(0);
+		await expect(page.getByRole("dialog")).toHaveCount(0);
+		await pluginsPane.getByRole("button", { name: "Close panel", exact: true }).click();
 
 		await fs.writeFile("test-results/runtime-selection.json", JSON.stringify(runtime, null, 2));
 		const evidence = await page.evaluate(
@@ -241,7 +344,7 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		// App-wide tools live in the sidebar's "More" menu.
 		await page.getByRole("button", { name: "Show more navigation", exact: true }).click();
 		await page.getByRole("menuitem", { name: /^Session stats/ }).click();
-		const stats = page.getByRole("dialog");
+		const stats = page.locator(".omp-inspector").getByRole("region");
 		await expect(stats).toBeVisible();
 		for (const label of [
 			"Overview",
@@ -268,34 +371,44 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await expect(page.getByRole("button", { name: "设置", exact: true })).toBeVisible();
 		await closeWelcome("欢迎使用 omp", "关闭");
 		await page.getByRole("button", { name: "设置", exact: true }).click();
-		await expect(page.getByRole("dialog")).toContainText("权限与安全");
-		await expect(page.getByRole("dialog").locator(".settings-nav-group-label")).toHaveCount(8);
-		const settingsPages: Array<{ group: string; page: string; text: string }> = [];
-		for (let groupIndex = 0; groupIndex < 8; groupIndex++) {
-			const settings = page.getByRole("dialog");
-			const group = settings.locator(".settings-nav-group-label").nth(groupIndex);
-			const groupName = await group.innerText();
-			await group.click();
-			const pages = settings.locator(".settings-nav-item");
-			const count = await pages.count();
-			for (let pageIndex = 0; pageIndex < count; pageIndex++) {
-				const target = pages.nth(pageIndex);
-				const pageName = await target.innerText();
-				await target.click();
-				await expect(settings.locator(".settings-content .animate-spin")).toHaveCount(0, { timeout: 30_000 });
-				const content = settings.locator(".settings-content");
-				await expect(content).not.toContainText("Something went wrong");
-				await expect(content).not.toContainText("Typo Detection (macOS)");
-				await expect(content).not.toContainText("Word Autocomplete (macOS)");
-				await expect(content).not.toContainText("Autocorrect (macOS)");
-				settingsPages.push({ group: groupName, page: pageName, text: await content.innerText() });
-				await page.screenshot({
-					path: `test-results/settings-${groupIndex}-${pageIndex}.png`,
-					scale: "css",
-					animations: "disabled",
-				});
-			}
+		const settings = page.getByRole("dialog");
+		const settingsNav = settings.getByRole("navigation");
+		await expect(settingsNav.getByRole("button", { name: "安全中心", exact: true })).toBeAttached();
+		for (const name of ["界面", "外观", "交互"]) {
+			await expect(settingsNav.getByRole("button", { name, exact: true })).toHaveCount(0);
 		}
+		await expect(settingsNav.locator("[aria-expanded]")).toHaveCount(0);
+		const settingsPages: Array<{ page: string; text: string }> = [];
+		const pages = settingsNav.locator(".settings-nav-item");
+		const count = await pages.count();
+		for (let pageIndex = 0; pageIndex < count; pageIndex++) {
+			const target = pages.nth(pageIndex);
+			const pageName = (await target.textContent()) ?? "";
+			await target.click();
+			await expect(settings.locator(".settings-content .animate-spin")).toHaveCount(0, { timeout: 30_000 });
+			const content = settings.locator(".settings-content");
+			await expect(content).not.toContainText("Something went wrong");
+			await expect(content).not.toContainText("Typo Detection (macOS)");
+			await expect(content).not.toContainText("Word Autocomplete (macOS)");
+			await expect(content).not.toContainText("Autocorrect (macOS)");
+			settingsPages.push({ page: pageName, text: (await content.textContent()) ?? "" });
+			await page.screenshot({
+				path: `test-results/settings-${pageIndex}.png`,
+				scale: "css",
+				animations: "disabled",
+			});
+		}
+		await settingsNav.getByRole("button", { name: "常规", exact: true }).click();
+		await expect(settings.locator('[id="setting-autoResume"]')).toBeAttached();
+		const displayRow = settings.locator("#setting-gui-showTokenUsage");
+		await displayRow.getByRole("switch").click();
+		await expect(displayRow).not.toContainText("使用原设置");
+		const resetDisplay = displayRow.getByRole("button", { name: "恢复跟随终端", exact: true });
+		await resetDisplay.click();
+		await expect(resetDisplay).toHaveCount(0);
+		await settingsNav.getByRole("button", { name: "返回对话", exact: true }).click();
+		await expect(settings).toHaveCount(0);
+		await page.getByRole("button", { name: "设置", exact: true }).click();
 		await fs.writeFile("test-results/settings-pages.json", JSON.stringify(settingsPages, null, 2));
 		const settingsSearch = page.getByRole("dialog").getByPlaceholder("搜索设置…");
 		await settingsSearch.fill("bash.patterns");
@@ -316,7 +429,7 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await expect
 			.poll(() => page.evaluate(() => window.omp.rpc.getSettings(["bash.patterns"])))
 			.toMatchObject({ success: true, data: { values: { "bash.patterns": [] } } });
-		await page.getByRole("dialog").getByRole("button", { name: "界面", exact: true }).click();
+		await page.getByRole("dialog").getByRole("button", { name: "常规", exact: true }).click();
 		await expect(page.getByRole("dialog")).toContainText("选择 GUI 主题");
 		await page.screenshot({ path: "test-results/05-packaged-zh.png", scale: "css", animations: "disabled" });
 		await page.keyboard.press("Escape");
@@ -367,7 +480,7 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 			getComputedStyle(document.documentElement).getPropertyValue("--omp-bg-primary"),
 		);
 		await page.getByRole("button", { name: "设置", exact: true }).click();
-		await page.getByRole("dialog").getByRole("button", { name: "界面", exact: true }).click();
+		await page.getByRole("dialog").getByRole("button", { name: "常规", exact: true }).click();
 		const font = page.locator('#setting-gui-fontSize input[type="number"]');
 		const chosenFont = await font.inputValue();
 		for (const value of [String(Number(chosenFont) + 1), chosenFont]) {
@@ -393,6 +506,8 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		);
 		expect(errors).toEqual([]);
 	} finally {
+		imageServer.closeAllConnections();
+		imageServer.close();
 		await fs.writeFile("test-results/main-process.log", mainOutput.join(""));
 		// The production quit guard intentionally blocks `app.quit()` while a
 		// sidecar is active; test teardown must bypass that user confirmation.

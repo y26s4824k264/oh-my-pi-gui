@@ -78,6 +78,7 @@ import type { MemoryWatcher } from "./memory-watcher";
 import { createMenu } from "./menu";
 import { deleteModelsProvider, listModelsProviders, modelsPath, upsertModelsProvider } from "./models-config";
 import { PluginCatalog } from "./plugin-catalog";
+import { fetchRemoteImage } from "./remote-image";
 import { runtimeLogPath, writeRuntimeLog } from "./runtime-log";
 import type { SchedulerHost } from "./scheduler/host";
 import type { SessionIndex } from "./session-index";
@@ -974,6 +975,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
 			await shell.openExternal(url);
 		}
 	});
+	ipcMain.handle(IPC_COMMANDS.SYSTEM_FETCH_REMOTE_IMAGE, (_event, url: unknown) => fetchRemoteImage(url));
 
 	// Tool-card path links — open a file in the system editor. "~" expands,
 	// relative paths resolve inside the calling window's workspace (escapes

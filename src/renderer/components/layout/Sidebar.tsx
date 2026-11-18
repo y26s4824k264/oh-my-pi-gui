@@ -97,6 +97,7 @@ import { ConfirmDialog } from "../common/ConfirmDialog";
 import { anchorFromEvent, ContextMenu, type ContextMenuAnchor } from "../common/ContextMenu";
 import { Glide } from "../common/Glide";
 import { LangSwitcher } from "../common/LangSwitcher";
+import { ProjectSettingsDialog } from "../dialogs/ProjectSettingsDialog";
 import { WorkspaceDialog } from "../dialogs/WorkspaceDialog";
 import { useUnreadNoticeCount } from "./NotificationBell";
 import { SidebarQuotas } from "./SidebarQuotas";
@@ -270,9 +271,7 @@ export function Sidebar() {
 	const [groupMenu, setGroupMenu] = useState<{ anchor: ContextMenuAnchor; group: WorkspaceGroup } | null>(null);
 	const [sessionMenu, setSessionMenu] = useState<{ anchor: ContextMenuAnchor; session: SessionInfo } | null>(null);
 	// Workspace display alias rename (group header inline input).
-	const [renamingGroupCwd, setRenamingGroupCwd] = useState<string | null>(null);
-	const [groupRenameDraft, setGroupRenameDraft] = useState("");
-	const groupRenameRef = useRef<HTMLInputElement>(null);
+	const [projectSettings, setProjectSettings] = useState<WorkspaceGroup | null>(null);
 	const openTab = useTabsStore(s => s.openTab);
 	const tabs = useTabsStore(s => s.tabs);
 	const activeTabId = useTabsStore(s => s.activeTabId);
@@ -1151,7 +1150,7 @@ export function Sidebar() {
 		);
 	};
 
-	/** One collapsible group header: icon (chevron on hover), name, count, hover actions. */
+	/** One collapsible group header: icon, name, count, and an optional menu. */
 	const renderGroupHeader = ({
 		id,
 		name,
@@ -1161,7 +1160,7 @@ export function Sidebar() {
 		onToggle,
 		pinned,
 		actions,
-		renameInput,
+		menuOpen,
 		onContextMenu,
 		current,
 	}: {
@@ -1173,13 +1172,13 @@ export function Sidebar() {
 		onToggle: () => void;
 		pinned?: boolean;
 		actions?: ReactNode;
-		renameInput?: ReactNode;
+		menuOpen?: boolean;
 		onContextMenu?: (event: ReactMouseEvent) => void;
 		current?: boolean;
 	}) => (
 		<div
 			data-workspace-group={id.startsWith("__") ? undefined : id}
-			data-actions-open={renameInput ? true : undefined}
+			data-actions-open={menuOpen ? true : undefined}
 			onContextMenu={onContextMenu}
 			className={cx(
 				"omp-sidebar-workspace-row omp-color-fade group/header flex h-[30px] w-full items-center rounded-lg px-2 text-omp-md",
@@ -1191,7 +1190,6 @@ export function Sidebar() {
 				type="button"
 				onClick={onToggle}
 				aria-expanded={!collapsedState}
-				aria-label={renameInput ? name : undefined}
 				className="flex min-w-0 flex-1 items-center text-left"
 			>
 				<span className="omp-sidebar-group-icon relative mr-2 flex size-4 shrink-0 items-center justify-center">
@@ -1210,13 +1208,11 @@ export function Sidebar() {
 				{pinned && (
 					<Pin size={11} className="mr-1.5 shrink-0 text-[var(--omp-dim)]" aria-label={t("sidebar.pinned")} />
 				)}
-				{renameInput ?? <SidebarRowTitle className="text-left font-medium" title={name} />}
+				<SidebarRowTitle className="text-left font-medium" title={name} />
 			</button>
-			{!renameInput && (
-				<span className="omp-sidebar-group-count ml-2 shrink-0 text-omp-xs tabular-nums text-[var(--omp-dim)]">
-					{count}
-				</span>
-			)}
+			<span className="omp-sidebar-group-count ml-2 shrink-0 text-omp-xs tabular-nums text-[var(--omp-dim)]">
+				{count}
+			</span>
 			{actions && (
 				<span
 					className="omp-sidebar-workspace-actions flex shrink-0 items-center justify-end gap-0.5"
@@ -1580,7 +1576,7 @@ export function Sidebar() {
 					)}
 					{visibleGroups.map(group => {
 						const groupCollapsed = isCollapsedGroup(group.cwd);
-						const renaming = renamingGroupCwd === group.cwd;
+						const menuOpen = groupMenu?.group.cwd === group.cwd;
 						return (
 							<div key={group.cwd} className="mb-1">
 								{renderGroupHeader({
@@ -1596,55 +1592,24 @@ export function Sidebar() {
 									pinned: pinnedGroups.includes(group.cwd),
 									current: group.cwd === cwd,
 									onContextMenu: event => setGroupMenu({ anchor: anchorFromEvent(event), group }),
-									renameInput: renaming ? (
-										<input
-											ref={groupRenameRef}
-											value={groupRenameDraft}
-											onChange={event => setGroupRenameDraft(event.target.value)}
-											onClick={event => event.stopPropagation()}
-											onBlur={() => {
-												useSidebarPrefs.getState().setGroupAlias(group.cwd, groupRenameDraft);
-												setRenamingGroupCwd(null);
-											}}
-											onKeyDown={event => {
-												if (isImeKeyEvent(event)) return;
-												if (event.key === "Enter") {
-													useSidebarPrefs.getState().setGroupAlias(group.cwd, groupRenameDraft);
-													setRenamingGroupCwd(null);
-												}
-												onEscape(event, () => setRenamingGroupCwd(null));
-											}}
-											className="min-w-0 flex-1 rounded-md border border-[var(--omp-input-focus-border)] bg-[var(--omp-input-bg)] px-1.5 py-0.5 text-omp-md text-[var(--omp-text)] outline-none"
-										/>
-									) : undefined,
+									menuOpen,
 									actions: (
-										<>
-											<button
-												type="button"
-												title={t("sidebar.menu.newAgentHere")}
-												aria-label={t("sidebar.menu.newAgentHere")}
-												className={rowActionButton}
-												onClick={event => {
-													event.stopPropagation();
-													void openTab({ cwd: group.cwd });
-												}}
-											>
-												<SquarePen size={12} />
-											</button>
-											<button
-												type="button"
-												title={t("sidebar.groupMenu")}
-												aria-label={t("sidebar.groupMenu")}
-												className={rowActionButton}
-												onClick={event => {
-													event.stopPropagation();
-													const rect = event.currentTarget.getBoundingClientRect();
-													setGroupMenu({ anchor: { x: rect.left, y: rect.bottom + 4 }, group });
-												}}
-											>
-												<MoreHorizontal size={13} />
-											</button>
-										</>
+										<button
+											type="button"
+											title={t("sidebar.groupMenu")}
+											aria-label={t("sidebar.groupMenu")}
+											aria-haspopup="menu"
+											aria-expanded={menuOpen}
+											className={rowActionButton}
+											onClick={event => {
+												const rect = event.currentTarget.getBoundingClientRect();
+												setGroupMenu(
+													menuOpen ? null : { anchor: { x: rect.left, y: rect.bottom + 4 }, group },
+												);
+											}}
+										>
+											<MoreHorizontal size={13} />
+										</button>
 									),
 								})}
 								{/* Collapsed groups render nothing: a long-lived install with
@@ -1830,7 +1795,16 @@ export function Sidebar() {
 				/>
 			)}
 
-			{/* Workspace group menu: new sessions, rename (alias), pin, delete. */}
+			{projectSettings && (
+				<ProjectSettingsDialog
+					key={projectSettings.cwd}
+					cwd={projectSettings.cwd}
+					name={projectSettings.name}
+					onClose={() => setProjectSettings(null)}
+				/>
+			)}
+
+			{/* Workspace group menu: project settings, new sessions, pin, delete. */}
 			{groupMenu &&
 				(() => {
 					const groupHasBusySession = groupMenu.group.sessions.some(isSessionBusy);
@@ -1840,6 +1814,15 @@ export function Sidebar() {
 							y={groupMenu.anchor.y}
 							onClose={() => setGroupMenu(null)}
 							items={[
+								{
+									id: "group-settings",
+									label: t("sidebar.menu.rename"),
+									icon: Pencil,
+									onSelect: () => {
+										setProjectSettings(groupMenu.group);
+										setGroupMenu(null);
+									},
+								},
 								{
 									id: "group-new-agent",
 									label: t("sidebar.menu.newAgentHere"),
@@ -1856,17 +1839,6 @@ export function Sidebar() {
 									onSelect: () => {
 										setGroupMenu(null);
 										useUiStore.getState().openWorktreeDialog({ baseCwd: groupMenu.group.cwd });
-									},
-								},
-								{
-									id: "group-rename",
-									label: t("sidebar.menu.rename"),
-									icon: Pencil,
-									onSelect: () => {
-										setGroupRenameDraft(groupMenu.group.name);
-										setRenamingGroupCwd(groupMenu.group.cwd);
-										setGroupMenu(null);
-										requestAnimationFrame(() => groupRenameRef.current?.select());
 									},
 								},
 								{

@@ -11,6 +11,46 @@ import { useTabsStore } from "./tabs";
 export type { ThemeMode };
 
 export type PanelTab = "overview" | "agents" | "btw" | "diff" | "files" | "terminal" | "browser";
+const CLOSED_WORKSPACE_PAGES = {
+	activeToolsOpen: false,
+	agentHubOpen: false,
+	changelogOpen: false,
+	contextReportOpen: false,
+	debugOpen: false,
+	extensionsOpen: false,
+	hotkeysOpen: false,
+	inventoryOpen: false,
+	jobsOpen: false,
+	logsOpen: false,
+	memoryOpen: false,
+	modelCompareOpen: false,
+	modelRolesOpen: false,
+	modesOpen: false,
+	pluginsOpen: false,
+	prCenterOpen: false,
+	providersOpen: false,
+	sessionInfoOpen: false,
+	sessionTreeOpen: false,
+	statsDashboardOpen: false,
+	usageOpen: false,
+	workspaceDirsOpen: false,
+};
+export type WorkspacePageId = keyof typeof CLOSED_WORKSPACE_PAGES | "tasks";
+
+function workspacePagePatch(page: WorkspacePageId | null): Partial<UiStore> {
+	return {
+		...CLOSED_WORKSPACE_PAGES,
+		...(page && page !== "tasks" ? { [page]: true } : {}),
+		...(page ? { settingsOpen: false } : {}),
+		workspacePage: page,
+	};
+}
+
+export function activeWorkspacePage(state: UiStore): WorkspacePageId | null {
+	const page = state.workspacePage;
+	return page && (page === "tasks" || state[page]) ? page : null;
+}
+
 /** Edit → Find, Find Next and Find Previous, as the window routes them. */
 export type FindCommand = "find" | "next" | "previous";
 export interface FindRequest {
@@ -49,6 +89,9 @@ interface UiStore {
 	sidebarVisible: boolean;
 	panelVisible: boolean;
 	panelTab: PanelTab;
+	workspacePage: WorkspacePageId | null;
+	openTasksPage: () => void;
+	closeTasksPage: () => void;
 	diffScope: DiffScope;
 	/** Application log viewer (moved out of the drawer: logs are diagnostics, not workspace). */
 	logsOpen: boolean;
@@ -318,6 +361,11 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	sidebarVisible: true,
 	panelVisible: false,
 	panelTab: "overview",
+	workspacePage: null,
+	openTasksPage: () => set(workspacePagePatch("tasks")),
+	closeTasksPage: () => {
+		if (get().workspacePage === "tasks") set({ workspacePage: null });
+	},
 	diffScope: "repository",
 	logsOpen: false,
 	filePreviewPath: null,
@@ -343,7 +391,15 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	toggleSidebar: () => set({ sidebarVisible: !get().sidebarVisible }),
 	// The bare toggle (title bar, shortcut) opens on Overview; links that open the
 	// drawer for a reason (Review, a file, /btw) go through setPanelTab instead.
-	togglePanel: () => set(get().panelVisible ? { panelVisible: false } : { panelVisible: true, panelTab: "overview" }),
+	togglePanel: () => {
+		const state = get();
+		set({
+			...workspacePagePatch(null),
+			...(state.panelVisible || activeWorkspacePage(state)
+				? { panelVisible: false }
+				: { panelVisible: true, panelTab: "overview" }),
+		});
+	},
 	toolsExpandAll: { expanded: false, seq: 0 },
 	toggleToolsExpandAll: () =>
 		set({ toolsExpandAll: { expanded: !get().toolsExpandAll.expanded, seq: get().toolsExpandAll.seq + 1 } }),
@@ -356,17 +412,18 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 				.tabs.find(t2 => t2.id === useTabsStore.getState().activeTabId)?.kind;
 			if (activeKind === "chat") return;
 		}
-		set({ panelTab: tab, panelVisible: true });
+		set({ ...workspacePagePatch(null), panelTab: tab, panelVisible: true });
 	},
 	setDiffScope: scope => set({ diffScope: scope }),
 	openChanges: scope => {
 		get().setPanelTab("diff");
 		if (get().panelTab === "diff") set({ diffScope: scope });
 	},
-	openLogs: () => set({ logsOpen: true }),
+	openLogs: () => set(workspacePagePatch("logsOpen")),
 	closeLogs: () => set({ logsOpen: false }),
 	openFilePreview: (path, line) =>
 		set({
+			...workspacePagePatch(null),
 			filePreviewPath: path,
 			filePreviewLine: line ?? null,
 			filePreviewImage: null,
@@ -375,6 +432,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 		}),
 	openImagePreview: (src, label) =>
 		set({
+			...workspacePagePatch(null),
 			filePreviewPath: null,
 			filePreviewLine: null,
 			filePreviewImage: { src, label },
@@ -409,22 +467,22 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	closeSettings: () => set({ settingsOpen: false }),
 	usageOpen: false,
 	providersOpen: false,
-	openUsage: () => set({ usageOpen: true }),
+	openUsage: () => set(workspacePagePatch("usageOpen")),
 	closeUsage: () => set({ usageOpen: false }),
-	openProviders: () => set({ providersOpen: true }),
+	openProviders: () => set(workspacePagePatch("providersOpen")),
 	closeProviders: () => set({ providersOpen: false }),
 	modelRolesOpen: false,
-	openModelRoles: () => set({ modelRolesOpen: true }),
+	openModelRoles: () => set(workspacePagePatch("modelRolesOpen")),
 	closeModelRoles: () => set({ modelRolesOpen: false }),
 	statsDashboardOpen: false,
-	openStatsDashboard: () => set({ statsDashboardOpen: true }),
+	openStatsDashboard: () => set(workspacePagePatch("statsDashboardOpen")),
 	closeStatsDashboard: () => set({ statsDashboardOpen: false }),
 	feedbackOpen: false,
 	feedbackPrefill: null,
 	openFeedback: prefill => set({ feedbackOpen: true, feedbackPrefill: prefill ?? null }),
 	closeFeedback: () => set({ feedbackOpen: false, feedbackPrefill: null }),
 	modelCompareOpen: false,
-	openModelCompare: () => set({ modelCompareOpen: true }),
+	openModelCompare: () => set(workspacePagePatch("modelCompareOpen")),
 	closeModelCompare: () => set({ modelCompareOpen: false }),
 	benchmarkOpen: false,
 	openBenchmark: () => set({ benchmarkOpen: true }),
@@ -433,9 +491,9 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	extensionsTab: "hooks" as const,
 	inventoryOpen: false,
 	inventoryTab: "plugins" as const,
-	openExtensions: tab => set({ extensionsOpen: true, extensionsTab: tab ?? "hooks" }),
+	openExtensions: tab => set({ ...workspacePagePatch("extensionsOpen"), extensionsTab: tab ?? "hooks" }),
 	closeExtensions: () => set({ extensionsOpen: false }),
-	openInventory: tab => set({ inventoryOpen: true, inventoryTab: tab ?? "plugins" }),
+	openInventory: tab => set({ ...workspacePagePatch("inventoryOpen"), inventoryTab: tab ?? "plugins" }),
 	closeInventory: () => set({ inventoryOpen: false }),
 	themePickerOpen: false,
 	openThemePicker: () => set({ themePickerOpen: true }),
@@ -445,18 +503,18 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	closeThemeEditor: backToPicker => set({ themeEditor: null, themePickerOpen: backToPicker === true }),
 	modesOpen: false,
 	modesTab: "vibe" as const,
-	openModes: tab => set({ modesOpen: true, modesTab: tab ?? "vibe" }),
+	openModes: tab => set({ ...workspacePagePatch("modesOpen"), modesTab: tab ?? "vibe" }),
 	closeModes: () => set({ modesOpen: false }),
 	agentHubOpen: false,
 	agentHubTab: "definitions" as const,
-	openAgentHub: tab => set({ agentHubOpen: true, agentHubTab: tab ?? "definitions" }),
+	openAgentHub: tab => set({ ...workspacePagePatch("agentHubOpen"), agentHubTab: tab ?? "definitions" }),
 	closeAgentHub: () => set({ agentHubOpen: false }),
 	memoryOpen: false,
 	memoryTab: "knowledge" as MemoryTabId,
-	openMemory: tab => set(state => ({ memoryOpen: true, memoryTab: tab ?? state.memoryTab })),
+	openMemory: tab => set(state => ({ ...workspacePagePatch("memoryOpen"), memoryTab: tab ?? state.memoryTab })),
 	closeMemory: () => set({ memoryOpen: false }),
 	hotkeysOpen: false,
-	openHotkeys: () => set({ hotkeysOpen: true }),
+	openHotkeys: () => set(workspacePagePatch("hotkeysOpen")),
 	closeHotkeys: () => set({ hotkeysOpen: false }),
 	importDialogOpen: false,
 	openImportDialog: () => set({ importDialogOpen: true }),
@@ -465,22 +523,22 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	openCopySelector: () => set({ copySelectorOpen: true }),
 	closeCopySelector: () => set({ copySelectorOpen: false }),
 	changelogOpen: false,
-	openChangelog: () => set({ changelogOpen: true }),
+	openChangelog: () => set(workspacePagePatch("changelogOpen")),
 	closeChangelog: () => set({ changelogOpen: false }),
 	contextReportOpen: false,
-	openContextReport: () => set({ contextReportOpen: true }),
+	openContextReport: () => set(workspacePagePatch("contextReportOpen")),
 	closeContextReport: () => set({ contextReportOpen: false }),
 	activeToolsOpen: false,
-	openActiveTools: () => set({ activeToolsOpen: true }),
+	openActiveTools: () => set(workspacePagePatch("activeToolsOpen")),
 	closeActiveTools: () => set({ activeToolsOpen: false }),
 	shareSessionOpen: false,
 	openShareSession: () => set({ shareSessionOpen: true }),
 	closeShareSession: () => set({ shareSessionOpen: false }),
 	jobsOpen: false,
-	openJobs: () => set({ jobsOpen: true }),
+	openJobs: () => set(workspacePagePatch("jobsOpen")),
 	closeJobs: () => set({ jobsOpen: false }),
 	workspaceDirsOpen: false,
-	openWorkspaceDirs: () => set({ workspaceDirsOpen: true }),
+	openWorkspaceDirs: () => set(workspacePagePatch("workspaceDirsOpen")),
 	closeWorkspaceDirs: () => set({ workspaceDirsOpen: false }),
 	forceToolOpen: false,
 	openForceTool: () => set({ forceToolOpen: true }),
@@ -493,7 +551,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	openCollab: joinLink => set({ collabOpen: true, collabJoinLink: joinLink ?? null }),
 	closeCollab: () => set({ collabOpen: false, collabJoinLink: null }),
 	debugOpen: false,
-	openDebug: () => set({ debugOpen: true }),
+	openDebug: () => set(workspacePagePatch("debugOpen")),
 	closeDebug: () => set({ debugOpen: false }),
 	liveOpen: false,
 	openLive: () => set({ liveOpen: true }),
@@ -519,10 +577,10 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	armCloseTab: tabId => set({ armedCloseTab: { tabId } }),
 	cancelCloseTab: () => set({ armedCloseTab: null }),
 	prCenterOpen: false,
-	openPrCenter: () => set({ prCenterOpen: true }),
+	openPrCenter: () => set(workspacePagePatch("prCenterOpen")),
 	closePrCenter: () => set({ prCenterOpen: false }),
 	pluginsOpen: false,
-	openPlugins: () => set({ pluginsOpen: true }),
+	openPlugins: () => set(workspacePagePatch("pluginsOpen")),
 	closePlugins: () => set({ pluginsOpen: false }),
 	conversationSearchOpen: false,
 	openConversationSearch: () => set({ conversationSearchOpen: true }),
@@ -540,10 +598,10 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	openBranchPicker: () => set({ branchPickerOpen: true }),
 	closeBranchPicker: () => set({ branchPickerOpen: false }),
 	sessionTreeOpen: false,
-	openSessionTree: () => set({ sessionTreeOpen: true }),
+	openSessionTree: () => set(workspacePagePatch("sessionTreeOpen")),
 	closeSessionTree: () => set({ sessionTreeOpen: false }),
 	sessionInfoOpen: false,
-	openSessionInfo: () => set({ sessionInfoOpen: true }),
+	openSessionInfo: () => set(workspacePagePatch("sessionInfoOpen")),
 	closeSessionInfo: () => set({ sessionInfoOpen: false }),
 	sessionSwitchPrompt: null as SessionInfo | null,
 	requestSessionSwitch: session => set({ sessionSwitchPrompt: session }),

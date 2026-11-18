@@ -339,6 +339,7 @@ export function MemoryWindow() {
 
 	return (
 		<Modal
+			dockable
 			bodyClassName="p-0"
 			onClose={close}
 			open={open}

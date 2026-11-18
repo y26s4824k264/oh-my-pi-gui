@@ -382,6 +382,8 @@ const api: OmpApi = {
 	system: {
 		info: () => ipcRenderer.invoke(IPC_COMMANDS.SYSTEM_INFO) as Promise<SystemInfo>,
 		openExternal: (url: string) => ipcRenderer.invoke(IPC_COMMANDS.SYSTEM_OPEN_EXTERNAL, url),
+		fetchRemoteImage: (url: string) =>
+			ipcRenderer.invoke(IPC_COMMANDS.SYSTEM_FETCH_REMOTE_IMAGE, url) as Promise<string | null>,
 		openPath: (path: string) => ipcRenderer.invoke(IPC_COMMANDS.SYSTEM_OPEN_PATH, path) as Promise<IpcOpenPathResult>,
 		resolvePaths: (paths: string[], tabId?: string) =>
 			ipcRenderer.invoke(IPC_COMMANDS.SYSTEM_RESOLVE_PATHS, { paths, tabId }) as Promise<

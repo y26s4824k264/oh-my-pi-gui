@@ -692,15 +692,15 @@
 .omp-transcript-editorial .omp-user-bubble.omp-transcript-content {
 	flex: 0 1 auto;
 	width: auto;
-	max-width: min(78%, 42rem);
+	max-width: min(84%, 42rem);
 }
 
 .omp-transcript-editorial .omp-user-bubble {
 	border: 1px solid var(--omp-transcript-user-border);
-	border-radius: 20px;
+	border-radius: 16px;
 	background: var(--omp-transcript-user-bg);
 	box-shadow: none !important;
-	padding: 9px 15px;
+	padding: 9px 14px;
 }
 
 .omp-transcript-editorial .omp-user-bubble-layout {
@@ -718,6 +718,10 @@
 
 .omp-transcript-editorial .omp-user-bubble-content {
 	min-width: 0;
+}
+
+.omp-transcript-editorial .omp-user-bubble-content .markdown-body {
+	line-height: 1.55;
 }
 
 .omp-transcript-editorial .omp-user-bubble-content .markdown-body p:first-child,
@@ -744,7 +748,7 @@
 }
 
 .omp-transcript-editorial .omp-assistant-turn {
-	padding: 8px var(--omp-editorial-edge) 4px var(--omp-editorial-inset) !important;
+	padding: 10px var(--omp-editorial-edge) 6px var(--omp-editorial-inset) !important;
 }
 
 .omp-transcript-editorial .omp-assistant-turn--compact {
@@ -798,7 +802,7 @@
 }
 
 .omp-transcript-editorial .omp-execution-group-summary {
-	font-size: var(--text-omp-md);
+	font-size: var(--text-omp-sm);
 }
 
 .omp-goal-dock {
@@ -1204,7 +1208,7 @@
 .omp-transcript-editorial .omp-assistant-turn .omp-streaming-tail,
 .omp-transcript-editorial .omp-streaming-turn > .markdown-body {
 	font-size: calc(var(--gui-font-size, 15px) * 15 / 15);
-	line-height: 1.65;
+	line-height: 1.7;
 	color: var(--omp-text);
 }
 
@@ -1239,13 +1243,39 @@
 }
 
 .omp-transcript-editorial .markdown-body p {
-	margin: 0.8em 0;
+	margin-block: 0.7em;
+}
+
+.omp-transcript-editorial .markdown-body :is(h1, h2, h3) {
+	line-height: 1.32;
+	font-weight: 650;
+	letter-spacing: -0.018em;
 }
 
 .omp-transcript-editorial .markdown-body h1 {
 	padding-bottom: 0;
 	border-bottom: 0;
-	font-size: 1.4em;
+	font-size: 1.5em;
+}
+
+.omp-transcript-editorial .markdown-body li + li {
+	margin-top: 0.3em;
+}
+
+.omp-transcript-editorial .omp-markdown-table {
+	max-width: 100%;
+	margin-block: 1em;
+}
+
+.omp-transcript-editorial .omp-markdown-table table {
+	display: table;
+	margin: 0;
+	width: 100%;
+}
+
+.omp-transcript-editorial .markdown-body .omp-code-block-header {
+	border-bottom: 1px solid var(--omp-border-muted);
+	background: color-mix(in srgb, var(--omp-code-bg) 80%, var(--omp-bg-elevated));
 }
 
 .omp-transcript-editorial .markdown-body pre code {
@@ -2162,12 +2192,8 @@
 	color: var(--omp-text);
 }
 
-.settings-nav-item[aria-current="page"] > span:first-child {
+.settings-nav-item[aria-current="page"] > svg {
 	color: var(--omp-accent);
-}
-
-.settings-nav-group-label {
-	font-weight: 600;
 }
 
 /* Form sections share a compact heading and an inset settings surface. */

@@ -12,7 +12,7 @@ export function LogsDialog() {
 	const open = useUiStore(state => state.logsOpen);
 	const close = useUiStore(state => state.closeLogs);
 	return (
-		<Modal bodyClassName="p-0" onClose={close} open={open} size="lg" title={t("logPanel.title")}>
+		<Modal dockable bodyClassName="p-0" onClose={close} open={open} size="lg" title={t("logPanel.title")}>
 			<div className="h-[min(70dvh,640px)]">{open && <LogPanel />}</div>
 		</Modal>
 	);

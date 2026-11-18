@@ -249,6 +249,31 @@ kbd,
 	padding-right: calc(var(--omp-caption-right) + 0.5rem);
 }
 
+[data-inspector-left-edge] .omp-inspector-header {
+	padding-left: calc(var(--omp-caption-left) + 0.75rem);
+}
+
+.omp-docked-page-content > :first-child {
+	max-height: none;
+}
+
+.omp-docked-page-content .omp-docked-master-detail > aside {
+	width: min(42%, 20rem);
+}
+
+@container omp-inspector (max-width: 570px) {
+	.omp-docked-master-detail {
+		flex-direction: column;
+	}
+
+	.omp-docked-page-content .omp-docked-master-detail > aside {
+		width: 100%;
+		max-height: 36%;
+		border-right: 0;
+		border-bottom: 1px solid var(--omp-border-muted);
+	}
+}
+
 .settings-main-canvas > header {
 	padding-right: max(var(--omp-column-pad), var(--omp-caption-right));
 }
@@ -716,7 +741,8 @@ kbd,
 .omp-sidebar-session-row[data-has-actions="true"]:hover .omp-sidebar-agent-pill,
 .omp-sidebar-session-row[data-has-actions="true"]:is(:focus-visible, :has(:focus-visible)) .omp-sidebar-agent-pill,
 .omp-sidebar-workspace-row:hover .omp-sidebar-group-count,
-.omp-sidebar-workspace-row:has(:focus-visible) .omp-sidebar-group-count {
+.omp-sidebar-workspace-row:has(:focus-visible) .omp-sidebar-group-count,
+.omp-sidebar-workspace-row[data-actions-open="true"] .omp-sidebar-group-count {
 	opacity: 0;
 }
 
@@ -895,7 +921,6 @@ kbd,
 		inset-block: 0;
 		right: 0;
 		z-index: 30;
-		width: min(460px, calc(100vw - 56px)) !important;
 		box-shadow: var(--omp-shadow-lg);
 		animation: omp-slide-in-right var(--omp-motion-spring) var(--omp-ease-spring) both;
 	}
@@ -1051,10 +1076,6 @@ kbd,
 
 	.settings-sidebar > :last-child {
 		padding-inline: 0.5rem;
-	}
-
-	.settings-nav-group {
-		margin-top: 0.5rem;
 	}
 
 	.settings-nav-item {

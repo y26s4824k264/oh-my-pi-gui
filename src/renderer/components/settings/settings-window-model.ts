@@ -6,7 +6,9 @@ import { GUI_DISPLAY_BOOL_FIELDS, GUI_DISPLAY_LEGACY_PATHS } from "../../lib/dis
 
 import type { SettingProvenance } from "../../../shared/rpc-types";
 import type { TabItem } from "../common";
-import { isSettingSupportedInGui } from "./settings-schema-utils";
+import { GENERAL_SCHEMA_TABS, GUI_TAB_ID, isSettingSupportedInGui } from "./settings-schema-utils";
+
+export { GUI_TAB_ID };
 
 export type LoadState = "loading" | "error" | "ready";
 
@@ -40,7 +42,6 @@ export const SSH_TAB_ID = "ssh";
 export const UPDATES_TAB_ID = "updates";
 /** Settings without UI metadata (advanced): searchable flat list. */
 export const ADVANCED_TAB_ID = "advanced";
-export const GUI_TAB_ID = "gui";
 export const SHORTCUTS_TAB_ID = "shortcuts";
 
 export const MANAGEMENT_TAB_IDS = new Set([
@@ -92,7 +93,7 @@ export function buildSettingsNavGroups(
 		{
 			id: "experience",
 			items: [
-				{ id: GUI_TAB_ID, label: "Interface" },
+				{ id: GUI_TAB_ID, label: "General" },
 				{ id: SHORTCUTS_TAB_ID, label: "Keyboard shortcuts" },
 			],
 		},
@@ -122,8 +123,6 @@ export function buildSettingsNavGroups(
 		},
 	];
 	const owners: Record<string, SettingsNavGroup["id"]> = {
-		appearance: "experience",
-		interaction: "experience",
 		model: "models",
 		providers: "models",
 		context: "tasks",
@@ -134,6 +133,7 @@ export function buildSettingsNavGroups(
 		memory: "memory",
 	};
 	for (const tab of schema?.tabs ?? []) {
+		if (GENERAL_SCHEMA_TABS.has(tab.id)) continue;
 		if (!schema?.entries.some(entry => entry.tab === tab.id && isSettingSupportedInGui(entry))) continue;
 		groups.find(group => group.id === (owners[tab.id] ?? "system"))?.items.push(tab);
 	}

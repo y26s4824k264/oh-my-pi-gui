@@ -953,7 +953,7 @@ export function InventorySettingsPage({ initialTab = "plugins", query }: { initi
 export function InventoryPanel({ open, onClose, initialTab = "plugins" }: InventoryPanelProps) {
 	const t = useT();
 	return (
-		<Modal bodyClassName="p-0" open={open} onClose={onClose} title={t("invPanel.title")} size="lg">
+		<Modal dockable bodyClassName="p-0" open={open} onClose={onClose} title={t("invPanel.title")} size="lg">
 			<InventoryContent active={open} embedded={false} initialTab={initialTab} />
 		</Modal>
 	);
