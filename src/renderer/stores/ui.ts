@@ -54,6 +54,7 @@ interface UiStore {
 	logsOpen: boolean;
 	/** Local file currently shown in the Files drawer. */
 	filePreviewPath: string | null;
+	filePreviewImage: { src: string; label: string } | null;
 	/** 1-based line the preview scrolls to and marks, when a link named one. */
 	filePreviewLine: number | null;
 	commandPaletteOpen: boolean;
@@ -170,6 +171,7 @@ interface UiStore {
 	openLogs: () => void;
 	closeLogs: () => void;
 	openFilePreview: (path: string, line?: number) => void;
+	openImagePreview: (src: string, label: string) => void;
 	closeFilePreview: () => void;
 	/** Per-card collapse overrides for the center dock (absent = expanded). */
 	dockCollapsed: Partial<Record<DockCardId, boolean>>;
@@ -319,6 +321,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	diffScope: "repository",
 	logsOpen: false,
 	filePreviewPath: null,
+	filePreviewImage: null,
 	filePreviewLine: null,
 	commandPaletteOpen: false,
 	modelPickerOpen: false,
@@ -363,8 +366,22 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 	openLogs: () => set({ logsOpen: true }),
 	closeLogs: () => set({ logsOpen: false }),
 	openFilePreview: (path, line) =>
-		set({ filePreviewPath: path, filePreviewLine: line ?? null, panelTab: "files", panelVisible: true }),
-	closeFilePreview: () => set({ filePreviewPath: null, filePreviewLine: null }),
+		set({
+			filePreviewPath: path,
+			filePreviewLine: line ?? null,
+			filePreviewImage: null,
+			panelTab: "files",
+			panelVisible: true,
+		}),
+	openImagePreview: (src, label) =>
+		set({
+			filePreviewPath: null,
+			filePreviewLine: null,
+			filePreviewImage: { src, label },
+			panelTab: "files",
+			panelVisible: true,
+		}),
+	closeFilePreview: () => set({ filePreviewPath: null, filePreviewLine: null, filePreviewImage: null }),
 	dockCollapsed: {},
 	toggleDockCard: id =>
 		set({
@@ -567,6 +584,7 @@ export const useUiStore = create<UiStore>()((set, get) => ({
 			pluginsOpen: false,
 			conversationSearchOpen: false,
 			filePreviewPath: null,
+			filePreviewImage: null,
 			filePreviewLine: null,
 			sessionPickerOpen: false,
 			branchPickerOpen: false,

@@ -6,7 +6,6 @@
  */
 
 import {
-	ArrowLeft,
 	AtSign,
 	Check,
 	Copy,
@@ -17,6 +16,7 @@ import {
 	FolderOpen,
 	FolderX,
 	RefreshCw,
+	X,
 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FsTreeEntry } from "../../../shared/ipc-types";
@@ -25,6 +25,7 @@ import { basename, copyText, formatBytes } from "../../lib/format";
 import { useT } from "../../lib/i18n";
 import { isSelectAll } from "../../lib/keymap";
 import { MarkdownRenderer } from "../../lib/markdown";
+import { useSessionStore } from "../../stores/session";
 import { useRuntimeTabId } from "../../stores/session-runtime-context";
 import { useUiStore } from "../../stores/ui";
 import { Button, Spinner } from "../common";
@@ -43,7 +44,7 @@ const SVG_MIME = "image/svg+xml";
 interface PreviewImage {
 	url: string;
 	mime: string | null;
-	bytes: number;
+	bytes?: number;
 }
 
 interface PreviewState {
@@ -115,10 +116,11 @@ function ImagePreview({
 				}}
 				onError={onFailed}
 			/>
-			<span className="text-omp-xs text-(--omp-dim)">
-				{pixels && `${pixels} · `}
-				{formatBytes(image.bytes)}
-			</span>
+			{(pixels || image.bytes !== undefined) && (
+				<span className="text-omp-xs text-(--omp-dim)">
+					{[pixels, image.bytes === undefined ? null : formatBytes(image.bytes)].filter(Boolean).join(" · ")}
+				</span>
+			)}
 		</div>
 	);
 }
@@ -126,7 +128,9 @@ function ImagePreview({
 export function FilesPanel() {
 	const t = useT();
 	const tabId = useRuntimeTabId();
+	const cwd = useSessionStore(state => state.cwd);
 	const filePreviewPath = useUiStore(s => s.filePreviewPath);
+	const filePreviewImage = useUiStore(s => s.filePreviewImage);
 	const filePreviewLine = useUiStore(s => s.filePreviewLine);
 	const openFilePreview = useUiStore(s => s.openFilePreview);
 	const closeFilePreview = useUiStore(s => s.closeFilePreview);
@@ -139,6 +143,24 @@ export function FilesPanel() {
 	const [error, setError] = useState<string | null>(null);
 	const [expanded, setExpanded] = useState<Set<string>>(new Set());
 	const [preview, setPreview] = useState<PreviewState | null>(null);
+	const [treeShare, setTreeShare] = useState(38);
+	const panelRef = useRef<HTMLDivElement>(null);
+	const resizing = useRef(false);
+
+	const treePath = useMemo(() => {
+		if (!filePreviewPath) return null;
+		const path = filePreviewPath.replace(/\\/g, "/");
+		const root = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+		if (root && path.startsWith(`${root}/`)) return path.slice(root.length + 1);
+		return /^([A-Za-z]:)?\//.test(path) ? null : path.replace(/^\.\//, "");
+	}, [cwd, filePreviewPath]);
+
+	useEffect(() => {
+		if (tree.length === 0 || !treePath?.includes("/")) return;
+		const parts = treePath.split("/").slice(0, -1);
+		const ancestors = parts.map((_, index) => `dir:${parts.slice(0, index + 1).join("/")}`);
+		setExpanded(current => new Set([...current, ...ancestors]));
+	}, [tree, treePath]);
 
 	const load = useCallback(async () => {
 		const version = ++listVersion.current;
@@ -324,174 +346,231 @@ export function FilesPanel() {
 		scroller.scrollTop = Math.max(0, top - scroller.clientHeight / 3);
 	}, [markedLine, activePreview?.content]);
 
-	if (filePreviewPath) {
-		return (
-			<div className="flex h-full flex-col">
-				<PanelToolbar className="gap-1 border-b border-(--omp-border-muted) pl-1.5">
-					<ToolbarIconButton label={t("filesPanel.back")} onClick={closeFilePreview}>
-						<ArrowLeft size={15} />
-					</ToolbarIconButton>
-					<span className="min-w-0 flex-1 px-1 text-omp-sm font-medium">
-						<FileLabel path={filePreviewPath} />
-					</span>
-					<ToolbarIconButton
-						label={t(copied ? "filesPanel.copied" : "filesPanel.copyPath")}
-						onClick={() =>
-							void copyText(filePreviewPath).then(ok => {
-								if (!ok) return;
-								setCopied(true);
-								window.setTimeout(() => setCopied(false), 1400);
-							})
-						}
-					>
-						{copied ? <Check size={14} className="text-(--omp-success)" /> : <Copy size={14} />}
-					</ToolbarIconButton>
-					<ToolbarIconButton
-						label={t("filesPanel.insertMention")}
-						onClick={() => {
-							insertMention(filePreviewPath);
-							closeFilePreview();
-						}}
-					>
-						<AtSign size={14} />
-					</ToolbarIconButton>
-					<PathLink
-						path={filePreviewPath}
-						external
-						label={t("filesPanel.openExternal")}
-						className="omp-pressable flex size-7 shrink-0 items-center justify-center rounded-md text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text) hover:no-underline"
-					>
-						<ExternalLinkIcon size={14} />
-					</PathLink>
-				</PanelToolbar>
-				{/* Focusable so a click puts ⌘A here: it selects the file, not the whole window. */}
-				<div
-					ref={previewScrollRef}
-					tabIndex={-1}
-					data-file-preview=""
-					onKeyDown={event => {
-						if (!isSelectAll(event) || !previewContentRef.current) return;
-						event.preventDefault();
-						selectContents(previewContentRef.current);
-					}}
-					className="min-h-0 flex-1 overflow-auto bg-(--omp-code-bg) outline-none"
-				>
-					{!activePreview || activePreview.loading ? (
-						<div className="flex items-center gap-2 p-4">
-							<Spinner size="sm" />
-							<span className="text-omp-sm text-(--omp-dim)">{t("filesPanel.reading")}</span>
-						</div>
-					) : activePreview.notice ? (
-						<PanelEmpty icon={FileX} title={activePreview.notice.title} hint={activePreview.notice.hint} />
-					) : previewImage ? (
-						<ImagePreview
-							image={previewImage}
-							name={basename(filePreviewPath)}
-							contentRef={setPreviewContent}
-							onFailed={onImageFailed}
-						/>
-					) : previewIsMarkdown ? (
-						<div ref={setPreviewContent} className="mx-auto max-w-3xl px-5 py-4 text-omp-md text-(--omp-text)">
-							<MarkdownRenderer content={activePreview.content ?? ""} />
-							{activePreview.truncated && (
-								<div className="mt-3 text-omp-xs text-(--omp-dim)">
-									{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
-								</div>
-							)}
-						</div>
-					) : (
-						<div className="relative flex min-w-max py-2 font-mono text-omp-xs leading-[1.6]">
-							{lineBand && (
-								<div
-									aria-hidden="true"
-									data-marked-line={markedLine ?? undefined}
-									className="pointer-events-none absolute inset-x-0 bg-[var(--omp-accent)]/12"
-									style={{ top: lineBand.top, height: lineBand.height }}
-								/>
-							)}
-							<div
-								ref={gutterRef}
-								aria-hidden="true"
-								className="sticky left-0 shrink-0 select-none bg-(--omp-code-bg) pr-3 pl-3 text-right text-(--omp-dim) opacity-70"
-							>
-								{Array.from({ length: previewLines }, (_, index) => (
-									<div
-										key={index}
-										data-marked={index + 1 === markedLine || undefined}
-										className={index + 1 === markedLine ? "font-semibold text-(--omp-accent)" : undefined}
-									>
-										{index + 1}
-									</div>
-								))}
-							</div>
-							<pre ref={setPreviewContent} className="m-0 pr-4 whitespace-pre text-(--omp-text) [tab-size:4]">
-								{activePreview.content}
-								{activePreview.truncated && (
-									<span className="text-(--omp-dim)">
-										{"\n"}
-										{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
-									</span>
-								)}
-							</pre>
-						</div>
-					)}
-				</div>
-			</div>
-		);
-	}
-
-	return (
-		<div className="flex h-full flex-col">
-			<span className="sr-only">{t("filesPanel.title")}</span>
-			<PanelToolbar>
-				<PanelSearch
-					label={t("filesPanel.search")}
-					placeholder={
-						fileCount > 0
-							? t("filesPanel.searchPlaceholder", { count: `${fileCount}${truncated ? "+" : ""}` })
-							: t("filesPanel.search")
-					}
-					value={query}
-					onChange={setQuery}
-				/>
-				<ToolbarIconButton label={t("filesPanel.refresh")} disabled={loading} onClick={() => void load()}>
-					<RefreshCw className={loading ? "animate-spin" : undefined} size={14} />
+	const hasPreview = Boolean(filePreviewPath || filePreviewImage);
+	const previewPane = filePreviewPath ? (
+		<section className="flex min-h-0 flex-col">
+			<PanelToolbar className="gap-1 border-b border-(--omp-border-muted) pl-1.5">
+				<ToolbarIconButton label={t("filesPanel.back")} onClick={closeFilePreview}>
+					<X size={14} />
 				</ToolbarIconButton>
+				<span className="min-w-0 flex-1 px-1 text-omp-sm font-medium">
+					<FileLabel path={filePreviewPath} />
+				</span>
+				<ToolbarIconButton
+					label={t(copied ? "filesPanel.copied" : "filesPanel.copyPath")}
+					onClick={() =>
+						void copyText(filePreviewPath).then(ok => {
+							if (!ok) return;
+							setCopied(true);
+							window.setTimeout(() => setCopied(false), 1400);
+						})
+					}
+				>
+					{copied ? <Check size={14} className="text-(--omp-success)" /> : <Copy size={14} />}
+				</ToolbarIconButton>
+				<ToolbarIconButton
+					label={t("filesPanel.insertMention")}
+					onClick={() => {
+						insertMention(filePreviewPath);
+					}}
+				>
+					<AtSign size={14} />
+				</ToolbarIconButton>
+				<PathLink
+					path={filePreviewPath}
+					external
+					label={t("filesPanel.openExternal")}
+					className="omp-pressable flex size-7 shrink-0 items-center justify-center rounded-md text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text) hover:no-underline"
+				>
+					<ExternalLinkIcon size={14} />
+				</PathLink>
 			</PanelToolbar>
-			{truncated && (
-				<p className="px-3 pb-1.5 text-omp-xs text-(--omp-dim)">
-					{t("filesPanel.searchLimit", { files: MAX_FILES, depth: MAX_DEPTH })}
-				</p>
-			)}
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 pb-2">
-				{loading && tree.length === 0 ? (
-					<div className="flex items-center justify-center gap-2 py-10">
+			{/* Focusable so a click puts ⌘A here: it selects the file, not the whole window. */}
+			<div
+				ref={previewScrollRef}
+				tabIndex={-1}
+				data-file-preview=""
+				onKeyDown={event => {
+					if (!isSelectAll(event) || !previewContentRef.current) return;
+					event.preventDefault();
+					selectContents(previewContentRef.current);
+				}}
+				className="min-h-0 flex-1 overflow-auto bg-(--omp-code-bg) outline-none"
+			>
+				{!activePreview || activePreview.loading ? (
+					<div className="flex items-center gap-2 p-4">
 						<Spinner size="sm" />
-						<span className="text-omp-sm text-(--omp-dim)">{t("filesPanel.scanning")}</span>
+						<span className="text-omp-sm text-(--omp-dim)">{t("filesPanel.reading")}</span>
 					</div>
-				) : error !== null ? (
-					<PanelEmpty
-						icon={FolderX}
-						tone="error"
-						title={t("filesPanel.unavailable")}
-						hint={error}
-						action={
-							<Button onClick={() => void load()} size="sm" variant="secondary">
-								{t("filesPanel.retry")}
-							</Button>
-						}
+				) : activePreview.notice ? (
+					<PanelEmpty icon={FileX} title={activePreview.notice.title} hint={activePreview.notice.hint} />
+				) : previewImage ? (
+					<ImagePreview
+						image={previewImage}
+						name={basename(filePreviewPath)}
+						contentRef={setPreviewContent}
+						onFailed={onImageFailed}
 					/>
-				) : query.trim() && nodes.length === 0 ? (
-					<p className="px-3 py-6 text-center text-omp-sm text-(--omp-dim)">{t("filesPanel.noMatch")}</p>
+				) : previewIsMarkdown ? (
+					<div ref={setPreviewContent} className="mx-auto max-w-3xl px-5 py-4 text-omp-md text-(--omp-text)">
+						<MarkdownRenderer content={activePreview.content ?? ""} sourcePath={filePreviewPath} />
+						{activePreview.truncated && (
+							<div className="mt-3 text-omp-xs text-(--omp-dim)">
+								{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
+							</div>
+						)}
+					</div>
 				) : (
-					<TreeView
-						emptyMessage={t("filesPanel.empty")}
-						expanded={expanded}
-						nodes={nodes}
-						onExpandedChange={setExpanded}
-					/>
+					<div className="relative flex min-w-max py-2 font-mono text-omp-xs leading-[1.6]">
+						{lineBand && (
+							<div
+								aria-hidden="true"
+								data-marked-line={markedLine ?? undefined}
+								className="pointer-events-none absolute inset-x-0 bg-[var(--omp-accent)]/12"
+								style={{ top: lineBand.top, height: lineBand.height }}
+							/>
+						)}
+						<div
+							ref={gutterRef}
+							aria-hidden="true"
+							className="sticky left-0 shrink-0 select-none bg-(--omp-code-bg) pr-3 pl-3 text-right text-(--omp-dim) opacity-70"
+						>
+							{Array.from({ length: previewLines }, (_, index) => (
+								<div
+									key={index}
+									data-marked={index + 1 === markedLine || undefined}
+									className={index + 1 === markedLine ? "font-semibold text-(--omp-accent)" : undefined}
+								>
+									{index + 1}
+								</div>
+							))}
+						</div>
+						<pre ref={setPreviewContent} className="m-0 pr-4 whitespace-pre text-(--omp-text) [tab-size:4]">
+							{activePreview.content}
+							{activePreview.truncated && (
+								<span className="text-(--omp-dim)">
+									{"\n"}
+									{t("filesPanel.truncated", { kb: PREVIEW_MAX_BYTES / 1000 })}
+								</span>
+							)}
+						</pre>
+					</div>
 				)}
 			</div>
+		</section>
+	) : filePreviewImage ? (
+		<section className="flex min-h-0 flex-col">
+			<PanelToolbar className="gap-1 border-b border-(--omp-border-muted)">
+				<ToolbarIconButton label={t("filesPanel.back")} onClick={closeFilePreview}>
+					<X size={14} />
+				</ToolbarIconButton>
+				<span className="min-w-0 flex-1 truncate text-omp-sm font-medium">{filePreviewImage.label}</span>
+			</PanelToolbar>
+			<div className="min-h-0 flex-1 overflow-auto" data-file-preview="">
+				<ZoomableImage
+					src={filePreviewImage.src}
+					alt={filePreviewImage.label}
+					className="omp-image-checker mx-auto block h-auto max-w-full object-contain p-3"
+				/>
+			</div>
+		</section>
+	) : null;
+
+	const resizeTree = (share: number) => setTreeShare(Math.round(Math.min(74, Math.max(17, share))));
+
+	return (
+		<div
+			className="grid h-full min-h-0"
+			ref={panelRef}
+			style={{
+				gridTemplateRows: hasPreview
+					? `minmax(4rem, ${treeShare}fr) 5px minmax(0, ${100 - treeShare}fr)`
+					: "minmax(0, 1fr)",
+			}}
+		>
+			<section className="flex min-h-0 flex-col">
+				<span className="sr-only">{t("filesPanel.title")}</span>
+				<PanelToolbar>
+					<PanelSearch
+						label={t("filesPanel.search")}
+						placeholder={
+							fileCount > 0
+								? t("filesPanel.searchPlaceholder", { count: `${fileCount}${truncated ? "+" : ""}` })
+								: t("filesPanel.search")
+						}
+						value={query}
+						onChange={setQuery}
+					/>
+					<ToolbarIconButton label={t("filesPanel.refresh")} disabled={loading} onClick={() => void load()}>
+						<RefreshCw className={loading ? "animate-spin" : undefined} size={14} />
+					</ToolbarIconButton>
+				</PanelToolbar>
+				{truncated && (
+					<p className="px-3 pb-1.5 text-omp-xs text-(--omp-dim)">
+						{t("filesPanel.searchLimit", { files: MAX_FILES, depth: MAX_DEPTH })}
+					</p>
+				)}
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 pb-2">
+					{loading && tree.length === 0 ? (
+						<div className="flex items-center justify-center gap-2 py-10">
+							<Spinner size="sm" />
+							<span className="text-omp-sm text-(--omp-dim)">{t("filesPanel.scanning")}</span>
+						</div>
+					) : error !== null ? (
+						<PanelEmpty
+							icon={FolderX}
+							tone="error"
+							title={t("filesPanel.unavailable")}
+							hint={error}
+							action={
+								<Button onClick={() => void load()} size="sm" variant="secondary">
+									{t("filesPanel.retry")}
+								</Button>
+							}
+						/>
+					) : query.trim() && nodes.length === 0 ? (
+						<p className="px-3 py-6 text-center text-omp-sm text-(--omp-dim)">{t("filesPanel.noMatch")}</p>
+					) : (
+						<TreeView
+							emptyMessage={t("filesPanel.empty")}
+							expanded={expanded}
+							nodes={nodes}
+							onExpandedChange={setExpanded}
+							selectedId={treePath ? `file:${treePath}` : undefined}
+						/>
+					)}
+				</div>
+			</section>
+			{hasPreview && (
+				<div
+					aria-label={t("split.resize")}
+					aria-orientation="horizontal"
+					aria-valuemin={17}
+					aria-valuemax={74}
+					aria-valuenow={treeShare}
+					className="z-10 cursor-row-resize touch-none border-y border-(--omp-border-muted) bg-(--omp-bg-tertiary) hover:bg-(--omp-accent) focus-visible:bg-(--omp-accent)"
+					role="separator"
+					tabIndex={0}
+					onKeyDown={event => {
+						if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+						event.preventDefault();
+						resizeTree(treeShare + (event.key === "ArrowUp" ? -5 : 5));
+					}}
+					onPointerDown={event => {
+						resizing.current = true;
+						event.currentTarget.setPointerCapture(event.pointerId);
+					}}
+					onPointerMove={event => {
+						const bounds = panelRef.current?.getBoundingClientRect();
+						if (resizing.current && bounds?.height)
+							resizeTree(((event.clientY - bounds.top) / bounds.height) * 100);
+					}}
+					onLostPointerCapture={() => {
+						resizing.current = false;
+					}}
+				/>
+			)}
+			{previewPane}
 		</div>
 	);
 }

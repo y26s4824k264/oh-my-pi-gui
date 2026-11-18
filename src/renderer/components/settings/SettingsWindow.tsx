@@ -1024,21 +1024,44 @@ export function SettingsWindow() {
 			aria-label={t("settings.title")}
 			aria-modal="true"
 			className={
-				"fixed inset-0 z-50 flex flex-col bg-(--omp-bg-primary) text-(--omp-text)" /* surface-ok: fullscreen settings window canvas */
+				"omp-settings-window fixed inset-0 z-50 flex flex-col bg-(--omp-bg-primary) text-(--omp-text)" /* surface-ok: fullscreen settings window canvas */
 			}
 			ref={dialogRef}
 			role="dialog"
 		>
 			<div className="flex min-h-0 flex-1">
-				<nav className="settings-sidebar flex shrink-0 flex-col border-r border-(--omp-border-muted)">
+				<nav
+					aria-label={t("settings.title")}
+					className="settings-sidebar flex shrink-0 flex-col border-r border-(--omp-border-muted)"
+				>
 					<div aria-hidden className="omp-window-caption drag-region" />
-					<div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+					<div className="px-3 pb-3 pt-2">
+						<div className="mb-2 px-2 text-omp-lg font-semibold">{t("settings.title")}</div>
+						{showGlobalSearch && (
+							<div className="no-drag relative min-w-0">
+								<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-(--omp-dim)" size={14} />
+								<input
+									aria-label={t("settings.searchPlaceholder")}
+									className="h-8 w-full rounded-lg border border-(--omp-border-muted) bg-(--omp-input-bg) pl-8 pr-2 text-omp-sm text-(--omp-text) outline-none transition-colors placeholder:text-(--omp-dim) focus:border-(--omp-input-focus-border) min-[1080px]:pr-10"
+									onChange={event => setQuery(event.target.value)}
+									placeholder={t("settings.searchPlaceholder")}
+									ref={searchInputRef}
+									spellCheck={false}
+									value={query}
+								/>
+								<span className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 text-omp-xxs text-(--omp-dim) min-[1080px]:inline">
+									{platformChord("⌘K")}
+								</span>
+							</div>
+						)}
+					</div>
+					<div className="min-h-0 flex-1 overflow-y-auto px-3 pb-4">
 						{navGroups.map((group, groupIndex) => (
-							<section className={groupIndex === 0 ? "" : "settings-nav-group mt-4"} key={group.id}>
+							<section className={groupIndex === 0 ? "" : "settings-nav-group mt-1.5"} key={group.id}>
 								<button
 									type="button"
 									aria-expanded={isGroupOpen(group)}
-									className="settings-nav-group-label mb-1 flex w-full items-center gap-1 rounded-lg px-3 py-2 text-left text-omp-md font-medium text-(--omp-text) hover:bg-(--omp-selected-bg)"
+									className="settings-nav-group-label flex w-full items-center gap-1.5 rounded-md px-2.5 py-2 text-left text-omp-sm font-medium text-(--omp-muted) hover:bg-(--omp-selected-bg) hover:text-(--omp-text)"
 									onClick={() => {
 										// Opening a group shows its first page; a group stays open until its
 										// own header closes it, so several groups can be read side by side.
@@ -1076,7 +1099,7 @@ export function SettingsWindow() {
 										return (
 											<button
 												aria-current={active ? "page" : undefined}
-												className={`settings-nav-item flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-omp-md transition-colors ${
+												className={`settings-nav-item flex w-full items-center gap-2 rounded-md py-1.5 pl-5 pr-2 text-left text-omp-md transition-colors ${
 													active
 														? "bg-(--omp-selected-bg) font-medium text-(--omp-text)"
 														: "text-(--omp-muted) hover:bg-(--omp-bg-tertiary) hover:text-(--omp-text)"
@@ -1117,29 +1140,17 @@ export function SettingsWindow() {
 					</div>
 				</nav>
 				<main className="settings-main-canvas flex min-w-0 flex-1 flex-col overflow-hidden">
-					<header className="omp-column omp-column-workspace drag-region flex h-14 shrink-0 items-center gap-3 border-b border-(--omp-border-muted)">
+					<header
+						className={cx(
+							"settings-page-frame drag-region flex min-h-16 shrink-0 items-center gap-3",
+							!wideTab && "settings-page-frame--form",
+						)}
+					>
 						<div className="min-w-0 flex-1">
-							<h1 className="truncate text-omp-xl font-semibold tracking-[-0.015em] text-(--omp-text)">
+							<h1 className="truncate text-[22px] font-semibold tracking-[-0.025em] text-(--omp-text)">
 								{tabTitle({ id: tab, label: tab })}
 							</h1>
 						</div>
-						{showGlobalSearch && (
-							<div className="no-drag relative w-[clamp(13rem,32vw,20rem)] max-w-full min-w-0 shrink">
-								<Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-(--omp-dim)" size={13} />
-								<input
-									aria-label={t("settings.searchPlaceholder")}
-									className="h-8 w-full rounded-lg border border-(--omp-input-border) bg-(--omp-input-bg) pr-12 pl-8 text-omp-sm text-(--omp-text) outline-none transition-colors placeholder:text-(--omp-dim) focus:border-(--omp-input-focus-border)"
-									onChange={event => setQuery(event.target.value)}
-									placeholder={t("settings.searchPlaceholder")}
-									ref={searchInputRef}
-									spellCheck={false}
-									value={query}
-								/>
-								<span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-(--omp-border-muted) px-1.5 py-0.5 text-omp-xxs text-(--omp-dim)">
-									{platformChord("⌘K")}
-								</span>
-							</div>
-						)}
 						<button
 							aria-label={t("settings.close")}
 							className="no-drag flex h-8 w-8 items-center justify-center rounded-lg text-(--omp-muted) transition-colors hover:bg-(--omp-bg-tertiary) hover:text-(--omp-text)"
@@ -1155,7 +1166,8 @@ export function SettingsWindow() {
 					<div className="settings-scroll min-h-0 flex-1 overflow-y-auto" ref={contentRef}>
 						<div
 							className={cx(
-								"omp-column omp-column-workspace py-4 min-[1080px]:py-5",
+								"settings-page-frame pb-8 pt-1",
+								!wideTab && "settings-page-frame--form",
 								fillsHeight && "flex h-full flex-col",
 							)}
 						>

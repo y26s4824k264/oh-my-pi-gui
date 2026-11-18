@@ -22,7 +22,9 @@ import { MermaidBlock } from "../components/chat/MermaidBlock";
 import { ZoomableImage } from "../components/common/ImageViewer";
 import { FileLink, PathCode, WebLink } from "../components/common/Links";
 import { useRuntimeTabId } from "../stores/session-runtime-context";
+import { useUiStore } from "../stores/ui";
 import { saveGuiPreference } from "./display-preferences";
+import { previewFile } from "./file-actions";
 import { useT } from "./i18n";
 import { type FileTarget, isWebUrl, looksLikeFilePath, parseFileTarget } from "./link-targets";
 import { useResolvedPath } from "./path-resolver";
@@ -30,10 +32,13 @@ import { PREVIEW_HEIGHT_LG, PREVIEW_SCROLL_CODE } from "./preview";
 import { rehypeDrivePaths } from "./rehype-drive-paths";
 import { remarkAutolinkBoundary } from "./remark-autolink-boundary";
 import { remarkDollarGuard } from "./remark-dollar-guard";
+import { remarkFilePaths } from "./remark-file-paths";
 import { remarkLatexMath } from "./remark-latex-math";
 
 interface MarkdownRendererProps {
 	content: string;
+	/** Local markdown files resolve relative image and link targets beside the file. */
+	sourcePath?: string;
 	/**
 	 * Parse single-dollar inline math. User-authored prompts disable this so SQL
 	 * JSONPath expressions such as `$.field ... $.other` remain literal text.
@@ -66,6 +71,7 @@ interface MarkdownRendererProps {
 const REMARK_PLUGINS: Options["remarkPlugins"] = [
 	remarkGfm,
 	remarkAutolinkBoundary,
+	remarkFilePaths,
 	remarkMath,
 	remarkDollarGuard,
 	remarkLatexMath,
@@ -73,6 +79,7 @@ const REMARK_PLUGINS: Options["remarkPlugins"] = [
 const REMARK_PLUGINS_LITERAL_SINGLE_DOLLAR: Options["remarkPlugins"] = [
 	remarkGfm,
 	remarkAutolinkBoundary,
+	remarkFilePaths,
 	[remarkMath, { singleDollarTextMath: false }],
 	[remarkDollarGuard, { singleDollarTextMath: false }],
 	remarkLatexMath,
@@ -220,12 +227,21 @@ const LINK_CLASS =
 
 /** Set inside a link so its inline code does not become a second, nested link. */
 const InsideLink = createContext(false);
+const MarkdownSourcePath = createContext<string | undefined>(undefined);
+
+function useMarkdownFilePath(path: string): string {
+	const source = useContext(MarkdownSourcePath);
+	if (!source || /^(?:[\\/]|~[\\/]|[A-Za-z]:)/.test(path)) return path;
+	const normalized = source.replace(/\\/g, "/");
+	return normalized.slice(0, normalized.lastIndexOf("/") + 1) + path;
+}
 
 function MarkdownFileLink({ target, children }: { target: FileTarget; children: ReactNode }) {
 	const tabId = useRuntimeTabId();
-	const resolved = useResolvedPath(target.path, tabId);
+	const path = useMarkdownFilePath(target.path);
+	const resolved = useResolvedPath(path, tabId);
 	return (
-		<FileLink target={target} resolved={resolved} className={LINK_CLASS}>
+		<FileLink target={{ ...target, path }} resolved={resolved} className={LINK_CLASS}>
 			{children}
 		</FileLink>
 	);
@@ -370,6 +386,7 @@ const LINKED_CODE_CLASS =
 function InlineCode({ children, ...props }: ComponentPropsWithoutRef<"code">) {
 	const insideLink = useContext(InsideLink);
 	const text = textOf(children);
+	const pathText = useMarkdownFilePath(text);
 	if (!insideLink && isWebUrl(text)) {
 		return (
 			<WebLink url={text}>
@@ -381,7 +398,7 @@ function InlineCode({ children, ...props }: ComponentPropsWithoutRef<"code">) {
 	}
 	if (!insideLink && looksLikeFilePath(text)) {
 		return (
-			<PathCode text={text} plainClassName={INLINE_CODE_CLASS} linkClassName={LINKED_CODE_CLASS}>
+			<PathCode text={pathText} plainClassName={INLINE_CODE_CLASS} linkClassName={LINKED_CODE_CLASS}>
 				{children}
 			</PathCode>
 		);
@@ -559,9 +576,10 @@ function RemoteMarkdownImage({ src, alt }: { src: string; alt: string }) {
 	);
 }
 
-function LocalMarkdownImage({ path, alt, title }: { path: string; alt: string; title?: string }) {
+function LocalMarkdownImage({ path: imagePath, alt, title }: { path: string; alt: string; title?: string }) {
 	const t = useT();
 	const tabId = useRuntimeTabId();
+	const path = useMarkdownFilePath(imagePath);
 	const [resolved, setResolved] = useState<{ url: string } | { error: true } | null>(null);
 	useEffect(() => {
 		let cancelled = false;
@@ -585,10 +603,19 @@ function LocalMarkdownImage({ path, alt, title }: { path: string; alt: string; t
 			</span>
 		);
 	}
-	return <ZoomableImage src={resolved.url} alt={alt} title={title ?? alt} className={MARKDOWN_IMAGE_CLASS} />;
+	return (
+		<ZoomableImage
+			src={resolved.url}
+			alt={alt}
+			title={title ?? alt}
+			className={MARKDOWN_IMAGE_CLASS}
+			onOpen={() => previewFile(path)}
+		/>
+	);
 }
 
 function MarkdownImage({ src, alt, title, ...props }: ComponentPropsWithoutRef<"img">) {
+	const t = useT();
 	const classified = classifyImageSrc(typeof src === "string" ? src : undefined);
 	const altText = typeof alt === "string" ? alt : "";
 	if (classified.kind === "none") return <MarkdownImageFallback alt={altText} />;
@@ -603,7 +630,14 @@ function MarkdownImage({ src, alt, title, ...props }: ComponentPropsWithoutRef<"
 	}
 	if (classified.kind === "remote") return <RemoteMarkdownImage src={classified.src} alt={altText} />;
 	return (
-		<ZoomableImage {...props} src={classified.src} alt={altText} title={title} className={MARKDOWN_IMAGE_CLASS} />
+		<ZoomableImage
+			{...props}
+			src={classified.src}
+			alt={altText}
+			title={title}
+			className={MARKDOWN_IMAGE_CLASS}
+			onOpen={() => useUiStore.getState().openImagePreview(classified.src, altText || t("chat.attachedImage"))}
+		/>
 	);
 }
 
@@ -628,6 +662,7 @@ const COMPONENTS: Components = {
  */
 export const MarkdownRenderer = memo(function MarkdownRenderer({
 	content,
+	sourcePath,
 	codeLineNumbers,
 	singleDollarTextMath = true,
 	streaming = false,
@@ -636,14 +671,16 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
 		<div className="markdown-body text-[1em] leading-[1.5]">
 			<StreamingContent.Provider value={streaming}>
 				<CodeLineNumbersOverride.Provider value={codeLineNumbers}>
-					<ReactMarkdown
-						remarkPlugins={singleDollarTextMath ? REMARK_PLUGINS : REMARK_PLUGINS_LITERAL_SINGLE_DOLLAR}
-						rehypePlugins={REHYPE_PLUGINS}
-						components={COMPONENTS}
-						urlTransform={URL_TRANSFORM}
-					>
-						{content}
-					</ReactMarkdown>
+					<MarkdownSourcePath.Provider value={sourcePath}>
+						<ReactMarkdown
+							remarkPlugins={singleDollarTextMath ? REMARK_PLUGINS : REMARK_PLUGINS_LITERAL_SINGLE_DOLLAR}
+							rehypePlugins={REHYPE_PLUGINS}
+							components={COMPONENTS}
+							urlTransform={URL_TRANSFORM}
+						>
+							{content}
+						</ReactMarkdown>
+					</MarkdownSourcePath.Provider>
 				</CodeLineNumbersOverride.Provider>
 			</StreamingContent.Provider>
 		</div>

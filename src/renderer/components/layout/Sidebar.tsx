@@ -17,6 +17,7 @@ import {
 	Command,
 	ExternalLink,
 	Folder,
+	FolderPlus,
 	GitBranchPlus,
 	GitPullRequest,
 	Keyboard,
@@ -75,6 +76,7 @@ import {
 } from "../../lib/session-tree";
 import { useTabRpc } from "../../lib/tab-rpc";
 import { tabSignalPresentation } from "../../lib/tab-signal";
+import { pickWorkspaceDirectory } from "../../lib/workspace-dirs";
 import { useAgentPagesStore } from "../../stores/agent-pages";
 import { useSchedulerStore } from "../../stores/scheduler";
 import { useSessionStore } from "../../stores/session";
@@ -293,6 +295,7 @@ export function Sidebar() {
 	}, [tabGroups, tabs, shownPair]);
 	const [hoveredPair, setHoveredPair] = useState<string | null>(null);
 	const activeTabKind = activeTab?.kind;
+	const registeredWorkspaces = useSidebarPrefs(s => s.registeredWorkspaces);
 	const pinnedGroups = useSidebarPrefs(s => s.pinnedGroups);
 	const pinnedSessions = useSidebarPrefs(s => s.pinnedSessions);
 	const archivedPaths = useSidebarPrefs(s => s.archivedSessions);
@@ -446,6 +449,9 @@ export function Sidebar() {
 			list.push(session);
 			byCwd.set(groupCwd, list);
 		}
+		for (const project of registeredWorkspaces) {
+			if (!byCwd.has(project)) byCwd.set(project, []);
+		}
 		const result: WorkspaceGroup[] = [...byCwd.entries()].map(([groupCwd, groupSessions]) => ({
 			cwd: groupCwd,
 			name: groupAliases[groupCwd] ?? (basename(groupCwd) || groupCwd),
@@ -476,6 +482,7 @@ export function Sidebar() {
 		groupAliases,
 		pinnedGroups,
 		pinnedSessions,
+		registeredWorkspaces,
 		recencyForSession,
 		workspaceLastUsed,
 		workspaceSort,
@@ -1486,6 +1493,27 @@ export function Sidebar() {
 					{mode === "code" && (
 						<button
 							type="button"
+							aria-label={t("workspaces.add")}
+							title={t("workspaces.add")}
+							onClick={() =>
+								void pickWorkspaceDirectory()
+									.then(path => (path ? useSidebarPrefs.getState().addWorkspace(path) : undefined))
+									.catch(error =>
+										toast({
+											variant: "error",
+											title: t("titlebar.openProjectFailed"),
+											message: String(error),
+										}),
+									)
+							}
+							className={rowActionButton}
+						>
+							<FolderPlus aria-hidden="true" size={14} />
+						</button>
+					)}
+					{mode === "code" && (
+						<button
+							type="button"
 							onClick={() => void setWorkspaceSort(workspaceSort === "name" ? "recent" : "name")}
 							title={t(workspaceSort === "name" ? "sidebar.sort.byNameHint" : "sidebar.sort.byRecentHint")}
 							aria-label={t(workspaceSort === "name" ? "sidebar.sort.byNameHint" : "sidebar.sort.byRecentHint")}
@@ -1540,7 +1568,7 @@ export function Sidebar() {
 							</Button>
 						</div>
 					)}
-					{!isLoading && !listError && totalCount === 0 && (
+					{!isLoading && !listError && totalCount === 0 && visibleGroups.length === 0 && (
 						<div className="omp-sidebar-empty px-2 py-2 text-omp-sm leading-relaxed text-[var(--omp-dim)]">
 							{mode === "code" ? t("sidebar.emptyCode") : t("sidebar.emptyWork")}
 						</div>
@@ -1561,7 +1589,10 @@ export function Sidebar() {
 									count: listedCount(group.sessions),
 									icon: Folder,
 									collapsedState: groupCollapsed,
-									onToggle: () => toggleGroup(group.cwd),
+									onToggle: () => {
+										if (group.sessions.length > 0) toggleGroup(group.cwd);
+										else void openTab({ cwd: group.cwd });
+									},
 									pinned: pinnedGroups.includes(group.cwd),
 									current: group.cwd === cwd,
 									onContextMenu: event => setGroupMenu({ anchor: anchorFromEvent(event), group }),
@@ -1864,7 +1895,7 @@ export function Sidebar() {
 									label: t("common.delete"),
 									icon: Trash2,
 									danger: true,
-									disabled: groupHasBusySession,
+									disabled: groupHasBusySession || groupMenu.group.sessions.length === 0,
 									disabledReason: t("sidebar.deleteGroupStreaming"),
 									onSelect: () => {
 										setPendingDelete({ kind: "group", group: groupMenu.group });

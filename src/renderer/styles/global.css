@@ -906,7 +906,8 @@ kbd,
    ============================================================================ */
 
 .settings-sidebar {
-	width: 15.5rem;
+	width: clamp(11rem, 22vw, 15rem);
+	background: var(--omp-sidebar-bg, var(--omp-bg-secondary));
 }
 
 .settings-content {
@@ -919,10 +920,19 @@ kbd,
 	scrollbar-gutter: stable;
 }
 
-/* Form pages keep a reading measure on the column's left edge rather than
-   centering inside it, so switching pages never moves where content starts. */
+.settings-page-frame {
+	width: 100%;
+	max-width: 88rem;
+	margin-inline: auto;
+	padding-inline: clamp(1rem, 3.5vw, 2.75rem);
+}
+
+.settings-page-frame--form {
+	max-width: 61rem;
+}
+
 .settings-form-measure {
-	max-width: var(--omp-column-settings);
+	max-width: 100%;
 }
 
 .settings-capability-grid {

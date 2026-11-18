@@ -142,6 +142,29 @@ describe("FilesPanel preview", () => {
 	const shownImage = () => document.querySelector("[data-file-preview] img");
 	const shownText = () => document.querySelector("[data-file-preview]")?.textContent ?? "";
 
+	it("keeps the directory tree and selected file visible beside the preview", async () => {
+		await open("notes/a.txt", {
+			read: vi.fn(async () => text("preview content")),
+			list: vi.fn(async () => ({
+				ok: true,
+				truncated: false,
+				entries: [
+					{
+						kind: "dir",
+						name: "notes",
+						path: "notes",
+						children: [{ kind: "file", name: "a.txt", path: "notes/a.txt" }],
+					},
+				],
+			})),
+		});
+		expect(shownText()).toContain("preview content");
+		expect(document.querySelector('[data-tree-id="file:notes/a.txt"]')?.getAttribute("aria-selected")).toBe("true");
+		await act(async () => useUiStore.getState().openImagePreview(PNG_URL, "Chat image"));
+		expect(shownImage()?.getAttribute("alt")).toBe("Chat image");
+		expect(document.querySelector('[role="tree"]')).not.toBeNull();
+	});
+
 	it("draws a binary image from the tab's workspace, not a notice or line numbers", async () => {
 		const readImage = vi.fn(async () => ({ ok: true, dataUrl: PNG_URL, mime: "image/png", size: 2048 }));
 		setFocusedSessionRuntime("tab-b");

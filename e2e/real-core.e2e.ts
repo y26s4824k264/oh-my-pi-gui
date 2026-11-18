@@ -12,7 +12,8 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 	const project = path.join(profile, "project");
 	const desktop = path.join(profile, "desktop");
 	const agent = path.join(profile, "agent");
-	await Promise.all([fs.mkdir(project), fs.mkdir(desktop), fs.mkdir(agent)]);
+	const addedProject = path.join(profile, "drawing-folder");
+	await Promise.all([fs.mkdir(project), fs.mkdir(desktop), fs.mkdir(agent), fs.mkdir(addedProject)]);
 	await fs.writeFile(
 		path.join(desktop, "prefs.json"),
 		JSON.stringify({
@@ -22,7 +23,21 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 			},
 		}),
 	);
-	await fs.writeFile(path.join(project, "README.md"), "# Local ARM audit\n");
+	await fs.mkdir(path.join(project, "docs"));
+	await Promise.all([
+		fs.writeFile(
+			path.join(project, "docs", "README.md"),
+			"# Local ARM audit\n\nRead ./notes.txt:2.\n\n![Diagram](diagram.png)\n",
+		),
+		fs.writeFile(path.join(project, "docs", "notes.txt"), "line one\nmarked line\n"),
+		fs.writeFile(
+			path.join(project, "docs", "diagram.png"),
+			Buffer.from(
+				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aYSsAAAAASUVORK5CYII=",
+				"base64",
+			),
+		),
+	]);
 	const attachmentName = "floor plan.ifc";
 	const attachmentPath = path.join(project, attachmentName);
 	await fs.writeFile(attachmentPath, "ISO-10303-21;");
@@ -101,6 +116,44 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		await removeAttachment.click();
 		await expect(composer).toHaveValue("");
 		await expect(removeAttachment).toHaveCount(0);
+		await page.getByRole("button", { name: "Review changes and files", exact: true }).click();
+		await page.getByRole("button", { name: "Files", exact: true }).click();
+		const tree = page.getByRole("tree");
+		const preview = page.locator("[data-file-preview]");
+		await tree.getByText("docs", { exact: true }).click();
+		const readme = tree.getByText("README.md", { exact: true });
+		await readme.click();
+		await expect(preview.getByRole("heading", { name: "Local ARM audit" })).toBeVisible();
+		await expect(tree).toBeVisible();
+		await preview.getByRole("link", { name: "./notes.txt:2" }).click();
+		await expect(preview).toContainText("marked line");
+		await expect(tree.getByText("notes.txt", { exact: true })).toBeVisible();
+		await readme.click();
+		await preview.getByRole("button", { name: "Diagram", exact: true }).click();
+		await expect(preview.locator('img[alt="diagram.png"]')).toBeVisible();
+		await expect(tree).toBeVisible();
+		await page.getByRole("button", { name: "Close panel" }).click();
+
+		// Drive the real Add Project action with a deterministic native-picker result.
+		await app.evaluate(({ dialog }, folder) => {
+			const showOpenDialog = dialog.showOpenDialog;
+			dialog.showOpenDialog = async () => {
+				dialog.showOpenDialog = showOpenDialog;
+				return { canceled: false, filePaths: [folder] };
+			};
+		}, addedProject);
+		await page.getByRole("button", { name: "Add project…", exact: true }).click();
+		const projectRow = page.locator("[data-workspace-group]").filter({ hasText: "drawing-folder" });
+		await expect(projectRow).toBeVisible();
+		await projectRow.click({ button: "right" });
+		await page.getByRole("menuitem", { name: "Rename project", exact: true }).click();
+		const alias = page.locator("[data-workspace-group] input");
+		await expect(alias).toHaveValue("drawing-folder");
+		await alias.fill("Delivery drawings");
+		await alias.press("Enter");
+		await expect(page.locator("[data-workspace-group]").filter({ hasText: "Delivery drawings" })).toBeVisible();
+		expect((await fs.stat(addedProject)).isDirectory()).toBe(true);
+
 		await fs.writeFile("test-results/runtime-selection.json", JSON.stringify(runtime, null, 2));
 		const evidence = await page.evaluate(
 			async exportPath => {
@@ -344,6 +397,6 @@ test("real bundled sidecar persists settings and sessions and serves every stats
 		// The production quit guard intentionally blocks `app.quit()` while a
 		// sidecar is active; test teardown must bypass that user confirmation.
 		await app.evaluate(({ app }) => app.exit(0));
-		await fs.rm(profile, { recursive: true, force: true });
+		await fs.rm(profile, { recursive: true, force: true, maxRetries: 5 });
 	}
 });

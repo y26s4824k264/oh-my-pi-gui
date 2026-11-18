@@ -29,6 +29,7 @@ import { useSessionStore } from "../../stores/session";
 import { useRuntimeTabId } from "../../stores/session-runtime-context";
 import { toast } from "../../stores/toast";
 import { toolEntryKey } from "../../stores/tools";
+import { useUiStore } from "../../stores/ui";
 import { ZoomableImage } from "../common/ImageViewer";
 import { TechnicalDetails } from "../common/TechnicalDetails";
 import { type RunningIndicator, ToolCard } from "../tools/ToolCard";
@@ -64,6 +65,7 @@ function InlineImage({ image }: { image: ImageContent }) {
 		<ZoomableImage
 			src={src}
 			alt={t("chat.attachedImage")}
+			onOpen={() => useUiStore.getState().openImagePreview(src, t("chat.attachedImage"))}
 			className="my-1 max-h-48 max-w-64 rounded-md border border-[var(--omp-border-muted)] object-contain"
 		/>
 	);
