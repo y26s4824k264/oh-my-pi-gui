@@ -198,6 +198,8 @@ function notesOf(info: { releaseNotes?: unknown }): string | undefined {
 }
 
 export function setupUpdater(): void {
+	const updatesConfigured = !app.isPackaged || fs.existsSync(path.join(process.resourcesPath, "app-update.yml"));
+	if (!updatesConfigured) current = { state: "error", message: mainT("updates.noFeed"), showInBanner: false };
 	installMode = detectInstallMode();
 	// Installs interrupted by older builds keyed the partial by process id, which
 	// nothing could ever continue — those orphans are the only debris a startup
@@ -252,6 +254,7 @@ export function setupUpdater(): void {
 	});
 
 	ipcMain.handle(IPC_COMMANDS.UPDATER_CHECK, async () => {
+		if (!updatesConfigured) return current;
 		broadcast({ state: "checking" });
 		try {
 			await autoUpdater.checkForUpdates();
@@ -316,6 +319,7 @@ export function setupUpdater(): void {
 	ipcMain.handle(IPC_COMMANDS.UPDATER_GET_STATUS, () => current);
 	ipcMain.handle(IPC_COMMANDS.UPDATER_VERSION, () => appVersion());
 
+	if (!updatesConfigured) return;
 	// First check once the app settles; then every 4h.
 	setTimeout(() => {
 		autoUpdater

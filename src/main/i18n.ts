@@ -102,6 +102,7 @@ export type MainTextKey =
 	| "updates.hashMismatch"
 	| "updates.installerMissing"
 	| "updates.noResult"
+	| "updates.noFeed"
 	| "updates.openInstallerFailed"
 	| "updates.unsupportedArchitecture";
 
@@ -242,6 +243,10 @@ const TEXT: Record<MainTextKey, Record<Exclude<MainLanguage, "ru" | "th">, strin
 	"updates.noResult": {
 		en: "Update check completed without a result.",
 		zh: "更新检查已完成，但未返回结果。",
+	},
+	"updates.noFeed": {
+		en: "This build is updated by installing a new package.",
+		zh: "此版本通过安装新版安装包更新。",
 	},
 	"updates.openInstallerFailed": {
 		en: "The installer was downloaded, but macOS could not open it.",
